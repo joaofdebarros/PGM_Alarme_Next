@@ -76,6 +76,14 @@ typedef struct {
 
 LED_t leds[1] = {{LED_ST_PORT, LED_ST_PIN, 0, 0, false}};
 
+XMC_GPIO_PORT_t *const rele_ports[5] = {
+    RL1_PORT, RL2_PORT, RL3_PORT, RL4_PORT, RL5_PORT
+};
+
+const uint8_t rele_pins[5] = {
+    RL1_PIN, RL2_PIN, RL3_PIN, RL4_PIN, RL5_PIN
+};
+
 // Rotina para salvar o UID do micro
 void get_UID() {
   uint32_t UniqueChipID[3] = {0, 0, 0};
@@ -309,45 +317,17 @@ void Controle() {
 
   case RL_CONTROL: {
     // Ligar cada rele conforme solicitado
-    if (ligar_rele.Bits.rele_1 == 1) {
-      XMC_GPIO_SetOutputHigh(RL1_PORT, RL1_PIN);
-      status_rele.Bits.rele_1 = 1;
-    } else {
-      XMC_GPIO_SetOutputLow(RL1_PORT, RL1_PIN);
-      status_rele.Bits.rele_1 = 0;
-    }
-
-    if (ligar_rele.Bits.rele_2 == 1) {
-      XMC_GPIO_SetOutputHigh(RL2_PORT, RL2_PIN);
-      status_rele.Bits.rele_2 = 1;
-    } else {
-      XMC_GPIO_SetOutputLow(RL2_PORT, RL2_PIN);
-      status_rele.Bits.rele_2 = 0;
-    }
-
-    if (ligar_rele.Bits.rele_3 == 1) {
-      XMC_GPIO_SetOutputHigh(RL3_PORT, RL3_PIN);
-      status_rele.Bits.rele_3 = 1;
-    } else {
-      XMC_GPIO_SetOutputLow(RL3_PORT, RL3_PIN);
-      status_rele.Bits.rele_3 = 0;
-    }
-
-    if (ligar_rele.Bits.rele_4 == 1) {
-      XMC_GPIO_SetOutputHigh(RL4_PORT, RL4_PIN);
-      status_rele.Bits.rele_4 = 1;
-    } else {
-      XMC_GPIO_SetOutputLow(RL4_PORT, RL4_PIN);
-      status_rele.Bits.rele_4 = 0;
-    }
-
-    if (ligar_rele.Bits.rele_5 == 1) {
-      XMC_GPIO_SetOutputHigh(RL5_PORT, RL5_PIN);
-      status_rele.Bits.rele_5 = 1;
-    } else {
-      XMC_GPIO_SetOutputLow(RL5_PORT, RL5_PIN);
-      status_rele.Bits.rele_5 = 0;
-    }
+	for (int i = 0; i < 5; i++) {
+	    uint8_t mask = (1 << i);  // cria uma máscara para cada bit (rele_1 até rele_5)
+	
+	    if (ligar_rele.Byte & mask) {
+	        XMC_GPIO_SetOutputHigh(rele_ports[i], rele_pins[i]);
+	        status_rele.Byte |= mask;
+	    } else {
+	        XMC_GPIO_SetOutputLow(rele_ports[i], rele_pins[i]);
+	        status_rele.Byte &= ~mask;
+	    }
+	}
 	
 	montar_pacote(12, PGM_ID, UID0, UID1, UID2, UID3, 'T', 0x02, ACK,
                   Buffer_TX);	
