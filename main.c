@@ -8,11 +8,16 @@
 #include "xmc_usic.h"
 #include <stdint.h>
 
-#define TAMANHO_BUFFER 11
+#define TAMANHO_BUFFER 12
 // Buffer de envio e recepção de dados
 volatile uint8_t Rx_buffer[TAMANHO_BUFFER];
 volatile uint8_t Rx_buffer_index = 0;
 volatile uint8_t Buffer_TX[TAMANHO_BUFFER] = {0};
+
+typedef enum {
+  PGM_ID = 0x01,
+  PGM_BROADCAST_ID = 0x02,
+} PGM_DEVICE_ID_t;
 
 // Flags de envio e recepção de dados
 volatile bool pacote_completo = false;
@@ -87,34 +92,55 @@ void get_UID() {
   UID3 = (UniqueChipID[0] >> 24) & 0xFF;
 }
 
-//void get_UID() {
-//  uint32_t *UCIDptr;
-//  uint32_t UniqueChipID = 0;;
-//  
-//  UCIDptr = (uint32_t *)0x40010004;
+// void get_UID() {
+//   uint32_t *UCIDptr;
+//   uint32_t UniqueChipID = 0;;
 //
-//  UniqueChipID = *UCIDptr;
-//  
-//  UID0 = (UniqueChipID) & 0xFFFFFFFF;
-//}
+//   UCIDptr = (uint32_t *)0x40010004;
+//
+//   UniqueChipID = *UCIDptr;
+//
+//   UID0 = (UniqueChipID) & 0xFFFFFFFF;
+// }
 
-uint16_t gerar_intervalo(uint8_t UID0, uint8_t UID1, uint8_t UID2, uint8_t UID3, uint32_t tempo)
-{
-    // Combina os valores do UID e tempo para criar uma semente pseudoaleatória
-    uint32_t semente = UID0;
-    semente ^= ((uint32_t)UID1 << 8);
-    semente ^= ((uint32_t)UID2 << 16);
-    semente ^= ((uint32_t)UID3 << 24);
-    semente ^= tempo; // misturando com o tempo para aleatoriedade
+uint16_t gerar_intervalo(uint8_t UID0, uint8_t UID1, uint8_t UID2, uint8_t UID3,
+                         uint32_t tempo) {
+  // Combina os valores do UID e tempo para criar uma semente pseudoaleatória
+  uint32_t semente = UID0;
+  semente ^= ((uint32_t)UID1 << 8);
+  semente ^= ((uint32_t)UID2 << 16);
+  semente ^= ((uint32_t)UID3 << 24);
+  semente ^= tempo; // misturando com o tempo para aleatoriedade
 
-    // Um pequeno hash para embaralhar a semente
-    semente ^= (semente >> 13);
-    semente *= 0x85ebca6b;
-    semente ^= (semente >> 16);
+  // Um pequeno hash para embaralhar a semente
+  semente ^= (semente >> 13);
+  semente *= 0x85ebca6b;
+  semente ^= (semente >> 16);
 
-    // Reduz o valor para o intervalo [20, 500]
-    uint16_t intervalo = 20 + (semente % (950 - 20 + 1));
-    return intervalo;
+  // Reduz o valor para o intervalo [20, 500]
+  uint16_t intervalo = 20 + (semente % (950 - 20 + 1));
+  return intervalo;
+}
+
+void montar_pacote(uint8_t size, uint8_t ID, uint8_t Addrs_1, uint8_t Addrs_2,
+                   uint8_t Addrs_3, uint8_t Addrs_4, uint8_t function,
+                   uint8_t origin, uint8_t data, volatile uint8_t *destino) {
+  destino[0] = start_byte;
+  destino[1] = size;
+  destino[2] = ID;
+  destino[3] = Addrs_1;
+  destino[4] = Addrs_2;
+  destino[5] = Addrs_3;
+  destino[6] = Addrs_4;
+  destino[7] = function;
+  destino[8] = origin;
+  destino[9] = data;
+
+  destino[10] =
+      ~(destino[0] ^ destino[1] ^ destino[2] ^ destino[3] ^ destino[4] ^
+        destino[5] ^ destino[6] ^ destino[7] ^ destino[8] ^ destino[9]);
+
+  destino[11] = stop_byte;
 }
 
 // Rotina para receber dados
@@ -132,7 +158,7 @@ void USIC0_1_IRQHandler(void) {
       } else {
         if (rx == 0x81) {
           recebendo = false;
-          if (Rx_buffer[6] == 0x01) {
+          if (Rx_buffer[7] == 0x01) {
             pacote_completo = true;
           } else {
             Rx_buffer_index = 0;
@@ -167,9 +193,7 @@ void blink_led_ST(uint8_t n) {
 
 // Rotina para controle dos tempos
 void SysTick_Handler(void) {
-  
-  
-  
+
   if (--Blinking_gap == 0) {
 
     if (cadastrado) {
@@ -223,29 +247,29 @@ void Controle() {
 
     XMC_GPIO_SetOutputHigh(Bus_Controle_PORT, Bus_Controle_PIN);
     if (pacote_completo) {
-      if (Rx_buffer[5] == 'A' && !cadastrado) {
-		
-		if(Rx_buffer[1] == UID0 && Rx_buffer[2] == UID1 && Rx_buffer[3] == UID2 && Rx_buffer[4] == UID3)
-		{
-			numero_modulo = Rx_buffer[7];
-			cadastrado = true;
-		}else{
-			estado = GET_UID;
-		}
-        
-      } else if (Rx_buffer[5] == 'S' && Rx_buffer[1] == UID0 &&
-                 Rx_buffer[2] == UID1 && Rx_buffer[3] == UID2 &&
-                 Rx_buffer[4] == UID3) {
+      if (Rx_buffer[6] == 'A' && !cadastrado) {
+
+        if (Rx_buffer[2] == UID0 && Rx_buffer[3] == UID1 &&
+            Rx_buffer[4] == UID2 && Rx_buffer[5] == UID3) {
+          numero_modulo = Rx_buffer[8];
+          cadastrado = true;
+        } else {
+          estado = GET_UID;
+        }
+
+      } else if (Rx_buffer[6] == 'S' && Rx_buffer[2] == UID0 &&
+                 Rx_buffer[3] == UID1 && Rx_buffer[4] == UID2 &&
+                 Rx_buffer[5] == UID3) {
         cadastrado = true;
-        numero_modulo = Rx_buffer[7];
+        numero_modulo = Rx_buffer[8];
         estado = STATUS_RL;
-      } else if (Rx_buffer[5] == 'T' && Rx_buffer[1] == UID0 &&
-                 Rx_buffer[2] == UID1 && Rx_buffer[3] == UID2 &&
-                 Rx_buffer[4] == UID3) {
-		ligar_rele.Byte = Rx_buffer[7];
+      } else if (Rx_buffer[6] == 'T' && Rx_buffer[2] == UID0 &&
+                 Rx_buffer[3] == UID1 && Rx_buffer[4] == UID2 &&
+                 Rx_buffer[5] == UID3) {
+        ligar_rele.Byte = Rx_buffer[8];
         estado = RL_CONTROL;
-      } else if (Rx_buffer[5] == 'D') {
-		ligar_rele.Byte = 0x00;
+      } else if (Rx_buffer[6] == 'D') {
+        ligar_rele.Byte = 0x00;
         cadastrado = false;
         pacote_obsoleto = true;
         estado = RL_CONTROL;
@@ -259,42 +283,21 @@ void Controle() {
 
   case GET_UID: {
     // Enviar o UID do dispositivo
-    Buffer_TX[0] = start_byte;
-    Buffer_TX[1] = TAMANHO_BUFFER;
-    Buffer_TX[2] = UID0;
-    Buffer_TX[3] = UID1;
-    Buffer_TX[4] = UID2;
-    Buffer_TX[5] = UID3;
-    Buffer_TX[6] = 'A';
-    Buffer_TX[7] = 0x02;
-    Buffer_TX[8] = ACK;
-    Buffer_TX[9] = checksum = ~(Buffer_TX[0] ^ Buffer_TX[1] ^ Buffer_TX[2] ^
-                                Buffer_TX[3] ^ Buffer_TX[4] ^ Buffer_TX[5] ^
-                                Buffer_TX[6] ^ Buffer_TX[7] ^ Buffer_TX[8]);
-    Buffer_TX[10] = stop_byte;
+    montar_pacote(12, PGM_ID, UID0, UID1, UID2, UID3, 'A', 0x02, ACK,
+                  Buffer_TX);
 
     estado = TRANSMIT;
 
   } break;
 
   case STATUS_RL: {
-    if (Rx_buffer[1] == UID0 && Rx_buffer[2] == UID1 && Rx_buffer[3] == UID2 &&
-        Rx_buffer[4] == UID3) {
+    if (Rx_buffer[2] == UID0 && Rx_buffer[3] == UID1 && Rx_buffer[4] == UID2 &&
+        Rx_buffer[5] == UID3) {
       // Enviar o status de cada rele
-      Buffer_TX[0] = start_byte;
-      Buffer_TX[1] = TAMANHO_BUFFER;
-      Buffer_TX[2] = UID0;
-      Buffer_TX[3] = UID1;
-      Buffer_TX[4] = UID2;
-      Buffer_TX[5] = UID3;
-      Buffer_TX[6] = 'S';
-      Buffer_TX[7] = 0x02; // 0x02 -> pacote Escravo
-      Buffer_TX[8] = status_rele.Byte;
-      Buffer_TX[9] = checksum = ~(Buffer_TX[0] ^ Buffer_TX[1] ^ Buffer_TX[2] ^
-                                  Buffer_TX[3] ^ Buffer_TX[4] ^ Buffer_TX[5] ^
-                                  Buffer_TX[6] ^ Buffer_TX[7] ^ Buffer_TX[8]);
-      Buffer_TX[10] = stop_byte;
-      
+
+      montar_pacote(12, PGM_ID, UID0, UID1, UID2, UID3, 'S', 0x02,
+                    status_rele.Byte, Buffer_TX);
+
       delay_aleatorio = gerar_intervalo(UID0, UID1, UID2, UID3, systick);
 
       estado = TRANSMIT;
@@ -305,91 +308,66 @@ void Controle() {
   } break;
 
   case RL_CONTROL: {
-      // Ligar cada rele conforme solicitado
-      if (ligar_rele.Bits.rele_1 == 1) {
-        XMC_GPIO_SetOutputHigh(RL1_PORT, RL1_PIN);
-        status_rele.Bits.rele_1 = 1;
-      } else {
-        XMC_GPIO_SetOutputLow(RL1_PORT, RL1_PIN);
-        status_rele.Bits.rele_1 = 0;
-      }
+    // Ligar cada rele conforme solicitado
+    if (ligar_rele.Bits.rele_1 == 1) {
+      XMC_GPIO_SetOutputHigh(RL1_PORT, RL1_PIN);
+      status_rele.Bits.rele_1 = 1;
+    } else {
+      XMC_GPIO_SetOutputLow(RL1_PORT, RL1_PIN);
+      status_rele.Bits.rele_1 = 0;
+    }
 
-      if (ligar_rele.Bits.rele_2 == 1) {
-        XMC_GPIO_SetOutputHigh(RL2_PORT, RL2_PIN);
-        status_rele.Bits.rele_2 = 1;
-      } else {
-        XMC_GPIO_SetOutputLow(RL2_PORT, RL2_PIN);
-        status_rele.Bits.rele_2 = 0;
-      }
+    if (ligar_rele.Bits.rele_2 == 1) {
+      XMC_GPIO_SetOutputHigh(RL2_PORT, RL2_PIN);
+      status_rele.Bits.rele_2 = 1;
+    } else {
+      XMC_GPIO_SetOutputLow(RL2_PORT, RL2_PIN);
+      status_rele.Bits.rele_2 = 0;
+    }
 
-      if (ligar_rele.Bits.rele_3 == 1) {
-        XMC_GPIO_SetOutputHigh(RL3_PORT, RL3_PIN);
-        status_rele.Bits.rele_3 = 1;
-      } else {
-        XMC_GPIO_SetOutputLow(RL3_PORT, RL3_PIN);
-        status_rele.Bits.rele_3 = 0;
-      }
+    if (ligar_rele.Bits.rele_3 == 1) {
+      XMC_GPIO_SetOutputHigh(RL3_PORT, RL3_PIN);
+      status_rele.Bits.rele_3 = 1;
+    } else {
+      XMC_GPIO_SetOutputLow(RL3_PORT, RL3_PIN);
+      status_rele.Bits.rele_3 = 0;
+    }
 
-      if (ligar_rele.Bits.rele_4 == 1) {
-        XMC_GPIO_SetOutputHigh(RL4_PORT, RL4_PIN);
-        status_rele.Bits.rele_4 = 1;
-      } else {
-        XMC_GPIO_SetOutputLow(RL4_PORT, RL4_PIN);
-        status_rele.Bits.rele_4 = 0;
-      }
+    if (ligar_rele.Bits.rele_4 == 1) {
+      XMC_GPIO_SetOutputHigh(RL4_PORT, RL4_PIN);
+      status_rele.Bits.rele_4 = 1;
+    } else {
+      XMC_GPIO_SetOutputLow(RL4_PORT, RL4_PIN);
+      status_rele.Bits.rele_4 = 0;
+    }
 
-      if (ligar_rele.Bits.rele_5 == 1) {
-        XMC_GPIO_SetOutputHigh(RL5_PORT, RL5_PIN);
-        status_rele.Bits.rele_5 = 1;
-      } else {
-        XMC_GPIO_SetOutputLow(RL5_PORT, RL5_PIN);
-        status_rele.Bits.rele_5 = 0;
-      }
-
-      Buffer_TX[0] = start_byte;
-      Buffer_TX[1] = TAMANHO_BUFFER;
-      Buffer_TX[2] = UID0;
-      Buffer_TX[3] = UID1;
-      Buffer_TX[4] = UID2;
-      Buffer_TX[5] = UID3;
-      Buffer_TX[6] = 'T';
-      Buffer_TX[7] = 0x02;
-      Buffer_TX[8] = ACK;
-      Buffer_TX[9] = checksum = ~(Buffer_TX[0] ^ Buffer_TX[1] ^ Buffer_TX[2] ^
-                                  Buffer_TX[3] ^ Buffer_TX[4] ^ Buffer_TX[5] ^
-                                  Buffer_TX[6] ^ Buffer_TX[7] ^ Buffer_TX[8]);
-      Buffer_TX[10] = stop_byte;
-
-      estado = TRANSMIT;
+    if (ligar_rele.Bits.rele_5 == 1) {
+      XMC_GPIO_SetOutputHigh(RL5_PORT, RL5_PIN);
+      status_rele.Bits.rele_5 = 1;
+    } else {
+      XMC_GPIO_SetOutputLow(RL5_PORT, RL5_PIN);
+      status_rele.Bits.rele_5 = 0;
+    }
+	
+	montar_pacote(12, PGM_ID, UID0, UID1, UID2, UID3, 'T', 0x02, ACK,
+                  Buffer_TX);	
+    estado = TRANSMIT;
 
   } break;
 
   case DELETE: {
-    Buffer_TX[0] = start_byte;
-    Buffer_TX[1] = TAMANHO_BUFFER;
-    Buffer_TX[2] = UID0;
-    Buffer_TX[3] = UID1;
-    Buffer_TX[4] = UID2;
-    Buffer_TX[5] = UID3;
-    Buffer_TX[6] = 'D';
-    Buffer_TX[7] = 0x02;
-    Buffer_TX[8] = ACK;
-    Buffer_TX[9] = checksum = ~(Buffer_TX[0] ^ Buffer_TX[1] ^ Buffer_TX[2] ^
-                                Buffer_TX[3] ^ Buffer_TX[4] ^ Buffer_TX[5] ^
-                                Buffer_TX[6] ^ Buffer_TX[7] ^ Buffer_TX[8]);
-    Buffer_TX[10] = stop_byte;
-
+	montar_pacote(12, PGM_ID, UID0, UID1, UID2, UID3, 'D', 0x02, ACK,
+                  Buffer_TX);
     estado = TRANSMIT;
   } break;
 
   case TRANSMIT: {
-	
-	if(!cadastrado)
-	{
-		delay_tx = systick + gerar_intervalo(UID0, UID1, UID2, UID3, systick);
-	}else{
-		delay_tx = systick + 2;
-	}
+
+    if (!cadastrado) {
+      delay_tx = systick + gerar_intervalo(UID0, UID1, UID2, UID3, systick);
+    } else {
+      delay_tx = systick + 2;
+    }
     aguardando_envio = true;
     estado = DELAY_ENVIO;
 
@@ -466,9 +444,7 @@ int main(void) {
 
   get_UID();
 
-  while (1) 
-  {
+  while (1) {
     Controle();
-    
   }
 }
