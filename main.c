@@ -8,6 +8,17 @@
 #include "xmc_usic.h"
 #include <stdint.h>
 
+#define ADRS0 2
+#define ADRS1 3
+#define ADRS2 4
+#define ADRS3 5
+#define FUNCTION 6
+#define ORIGIN 7
+#define DATA 8
+
+#define MASTER 1
+#define SLAVE 2
+
 #define TAMANHO_BUFFER 12
 // Buffer de envio e recepção de dados
 volatile uint8_t Rx_buffer[TAMANHO_BUFFER];
@@ -76,13 +87,10 @@ typedef struct {
 
 LED_t leds[1] = {{LED_ST_PORT, LED_ST_PIN, 0, 0, false}};
 
-XMC_GPIO_PORT_t *const rele_ports[5] = {
-    RL1_PORT, RL2_PORT, RL3_PORT, RL4_PORT, RL5_PORT
-};
+XMC_GPIO_PORT_t *const rele_ports[5] = {RL1_PORT, RL2_PORT, RL3_PORT, RL4_PORT,
+                                        RL5_PORT};
 
-const uint8_t rele_pins[5] = {
-    RL1_PIN, RL2_PIN, RL3_PIN, RL4_PIN, RL5_PIN
-};
+const uint8_t rele_pins[5] = {RL1_PIN, RL2_PIN, RL3_PIN, RL4_PIN, RL5_PIN};
 
 // Rotina para salvar o UID do micro
 void get_UID() {
@@ -166,7 +174,7 @@ void USIC0_1_IRQHandler(void) {
       } else {
         if (rx == 0x81) {
           recebendo = false;
-          if (Rx_buffer[7] == 0x01) {
+          if (Rx_buffer[ORIGIN] == MASTER) {
             pacote_completo = true;
           } else {
             Rx_buffer_index = 0;
@@ -255,28 +263,28 @@ void Controle() {
 
     XMC_GPIO_SetOutputHigh(Bus_Controle_PORT, Bus_Controle_PIN);
     if (pacote_completo) {
-      if (Rx_buffer[6] == 'A' && !cadastrado) {
+      if (Rx_buffer[FUNCTION] == 'A' && !cadastrado) {
 
-        if (Rx_buffer[2] == UID0 && Rx_buffer[3] == UID1 &&
-            Rx_buffer[4] == UID2 && Rx_buffer[5] == UID3) {
+        if (Rx_buffer[ADRS0] == UID0 && Rx_buffer[ADRS1] == UID1 &&
+            Rx_buffer[ADRS2] == UID2 && Rx_buffer[ADRS3] == UID3) {
           numero_modulo = Rx_buffer[8];
           cadastrado = true;
         } else {
           estado = GET_UID;
         }
 
-      } else if (Rx_buffer[6] == 'S' && Rx_buffer[2] == UID0 &&
-                 Rx_buffer[3] == UID1 && Rx_buffer[4] == UID2 &&
-                 Rx_buffer[5] == UID3) {
+      } else if (Rx_buffer[6] == 'S' && Rx_buffer[ADRS0] == UID0 &&
+                 Rx_buffer[ADRS1] == UID1 && Rx_buffer[ADRS2] == UID2 &&
+                 Rx_buffer[ADRS3] == UID3) {
         cadastrado = true;
-        numero_modulo = Rx_buffer[8];
+        numero_modulo = Rx_buffer[DATA];
         estado = STATUS_RL;
-      } else if (Rx_buffer[6] == 'T' && Rx_buffer[2] == UID0 &&
-                 Rx_buffer[3] == UID1 && Rx_buffer[4] == UID2 &&
-                 Rx_buffer[5] == UID3) {
-        ligar_rele.Byte = Rx_buffer[8];
+      } else if (Rx_buffer[FUNCTION] == 'T' && Rx_buffer[ADRS0] == UID0 &&
+                 Rx_buffer[ADRS1] == UID1 && Rx_buffer[ADRS2] == UID2 &&
+                 Rx_buffer[ADRS3] == UID3) {
+        ligar_rele.Byte = Rx_buffer[DATA];
         estado = RL_CONTROL;
-      } else if (Rx_buffer[6] == 'D') {
+      } else if (Rx_buffer[FUNCTION] == 'D') {
         ligar_rele.Byte = 0x00;
         cadastrado = false;
         pacote_obsoleto = true;
@@ -299,8 +307,8 @@ void Controle() {
   } break;
 
   case STATUS_RL: {
-    if (Rx_buffer[2] == UID0 && Rx_buffer[3] == UID1 && Rx_buffer[4] == UID2 &&
-        Rx_buffer[5] == UID3) {
+    if (Rx_buffer[ADRS0] == UID0 && Rx_buffer[ADRS1] == UID1 &&
+        Rx_buffer[ADRS2] == UID2 && Rx_buffer[ADRS3] == UID3) {
       // Enviar o status de cada rele
 
       montar_pacote(12, PGM_ID, UID0, UID1, UID2, UID3, 'S', 0x02,
@@ -317,26 +325,27 @@ void Controle() {
 
   case RL_CONTROL: {
     // Ligar cada rele conforme solicitado
-	for (int i = 0; i < 5; i++) {
-	    uint8_t mask = (1 << i);  // cria uma máscara para cada bit (rele_1 até rele_5)
-	
-	    if (ligar_rele.Byte & mask) {
-	        XMC_GPIO_SetOutputHigh(rele_ports[i], rele_pins[i]);
-	        status_rele.Byte |= mask;
-	    } else {
-	        XMC_GPIO_SetOutputLow(rele_ports[i], rele_pins[i]);
-	        status_rele.Byte &= ~mask;
-	    }
-	}
-	
-	montar_pacote(12, PGM_ID, UID0, UID1, UID2, UID3, 'T', 0x02, ACK,
-                  Buffer_TX);	
+    for (int i = 0; i < 5; i++) {
+      uint8_t mask =
+          (1 << i); // cria uma máscara para cada bit (rele_1 até rele_5)
+
+      if (ligar_rele.Byte & mask) {
+        XMC_GPIO_SetOutputHigh(rele_ports[i], rele_pins[i]);
+        status_rele.Byte |= mask;
+      } else {
+        XMC_GPIO_SetOutputLow(rele_ports[i], rele_pins[i]);
+        status_rele.Byte &= ~mask;
+      }
+    }
+
+    montar_pacote(12, PGM_ID, UID0, UID1, UID2, UID3, 'T', 0x02, ACK,
+                  Buffer_TX);
     estado = TRANSMIT;
 
   } break;
 
   case DELETE: {
-	montar_pacote(12, PGM_ID, UID0, UID1, UID2, UID3, 'D', 0x02, ACK,
+    montar_pacote(12, PGM_ID, UID0, UID1, UID2, UID3, 'D', 0x02, ACK,
                   Buffer_TX);
     estado = TRANSMIT;
   } break;
