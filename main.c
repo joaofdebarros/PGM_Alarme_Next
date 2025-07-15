@@ -8,10 +8,9 @@
 #include "xmc_usic.h"
 #include <stdint.h>
 
-#define TAMANHO_BUFFER 12
+#define TAMANHO_BUFFER 11
 // Buffer de envio e recepção de dados
-volatile uint8_t Rx_buffer[20];
-volatile uint8_t Rx_buffer_size = 20;
+volatile uint8_t Rx_buffer[TAMANHO_BUFFER];
 volatile uint8_t Rx_buffer_index = 0;
 volatile uint8_t Buffer_TX[TAMANHO_BUFFER] = {0};
 
@@ -71,12 +70,6 @@ typedef struct {
 } LED_t;
 
 LED_t leds[1] = {{LED_ST_PORT, LED_ST_PIN, 0, 0, false}};
-
-typedef enum {
-  PGM_ID = 0x01,
-  PGM_BROADCAST_ID = 0x02,
-} PGM_DEVICE_ID_t;
-
 
 // Rotina para salvar o UID do micro
 void get_UID() {
@@ -139,7 +132,7 @@ void USIC0_1_IRQHandler(void) {
       } else {
         if (rx == 0x81) {
           recebendo = false;
-          if ((Rx_buffer[1] == PGM_ID || Rx_buffer[1] == PGM_BROADCAST_ID) && Rx_buffer[7] == 0x01) {
+          if (Rx_buffer[6] == 0x01) {
             pacote_completo = true;
           } else {
             Rx_buffer_index = 0;
@@ -147,12 +140,8 @@ void USIC0_1_IRQHandler(void) {
 
           break;
         } else {
-          if (Rx_buffer_index < Rx_buffer_size) {
-			if(Rx_buffer_index == 0){
-				Rx_buffer_size = rx;
-			}  
+          if (Rx_buffer_index < TAMANHO_BUFFER) {
             Rx_buffer[Rx_buffer_index++] = rx;
-                
           } else {
             recebendo = false;
             Rx_buffer_index = 0;
@@ -234,24 +223,28 @@ void Controle() {
 
     XMC_GPIO_SetOutputHigh(Bus_Controle_PORT, Bus_Controle_PIN);
     if (pacote_completo) {
-      if (Rx_buffer[6] == 'A' && !cadastrado) {
+      if (Rx_buffer[5] == 'A' && !cadastrado) {
 		
-		if(Rx_buffer[2] == UID0 && Rx_buffer[3] == UID1 && Rx_buffer[4] == UID2 && Rx_buffer[5] == UID3)
+		if(Rx_buffer[1] == UID0 && Rx_buffer[2] == UID1 && Rx_buffer[3] == UID2 && Rx_buffer[4] == UID3)
 		{
-			numero_modulo = Rx_buffer[8];
+			numero_modulo = Rx_buffer[7];
 			cadastrado = true;
 		}else{
 			estado = GET_UID;
 		}
         
-      } else if (Rx_buffer[6] == 'S' && Rx_buffer[2] == UID0 && Rx_buffer[3] == UID1 && Rx_buffer[4] == UID2 && Rx_buffer[5] == UID3) {
+      } else if (Rx_buffer[5] == 'S' && Rx_buffer[1] == UID0 &&
+                 Rx_buffer[2] == UID1 && Rx_buffer[3] == UID2 &&
+                 Rx_buffer[4] == UID3) {
         cadastrado = true;
-        numero_modulo = Rx_buffer[8];
+        numero_modulo = Rx_buffer[7];
         estado = STATUS_RL;
-      } else if (Rx_buffer[6] == 'T' && Rx_buffer[2] == UID0 && Rx_buffer[3] == UID1 && Rx_buffer[4] == UID2 && Rx_buffer[5] == UID3) {
+      } else if (Rx_buffer[5] == 'T' && Rx_buffer[1] == UID0 &&
+                 Rx_buffer[2] == UID1 && Rx_buffer[3] == UID2 &&
+                 Rx_buffer[4] == UID3) {
 		ligar_rele.Byte = Rx_buffer[7];
         estado = RL_CONTROL;
-      } else if (Rx_buffer[6] == 'D') {
+      } else if (Rx_buffer[5] == 'D') {
 		ligar_rele.Byte = 0x00;
         cadastrado = false;
         pacote_obsoleto = true;
@@ -268,41 +261,39 @@ void Controle() {
     // Enviar o UID do dispositivo
     Buffer_TX[0] = start_byte;
     Buffer_TX[1] = TAMANHO_BUFFER;
-    Buffer_TX[2] = PGM_ID;
-    Buffer_TX[3] = UID0;
-    Buffer_TX[4] = UID1;
-    Buffer_TX[5] = UID2;
-    Buffer_TX[6] = UID3;
-    Buffer_TX[7] = 'A';
-    Buffer_TX[8] = 0x02;
-    Buffer_TX[9] = ACK;
-    Buffer_TX[10] = checksum = ~(Buffer_TX[0] ^ Buffer_TX[1] ^ Buffer_TX[2] ^
+    Buffer_TX[2] = UID0;
+    Buffer_TX[3] = UID1;
+    Buffer_TX[4] = UID2;
+    Buffer_TX[5] = UID3;
+    Buffer_TX[6] = 'A';
+    Buffer_TX[7] = 0x02;
+    Buffer_TX[8] = ACK;
+    Buffer_TX[9] = checksum = ~(Buffer_TX[0] ^ Buffer_TX[1] ^ Buffer_TX[2] ^
                                 Buffer_TX[3] ^ Buffer_TX[4] ^ Buffer_TX[5] ^
-                                Buffer_TX[6] ^ Buffer_TX[7] ^ Buffer_TX[8] ^ Buffer_TX[9]);
-    Buffer_TX[11] = stop_byte;
+                                Buffer_TX[6] ^ Buffer_TX[7] ^ Buffer_TX[8]);
+    Buffer_TX[10] = stop_byte;
 
     estado = TRANSMIT;
 
   } break;
 
   case STATUS_RL: {
-    if (Rx_buffer[2] == UID0 && Rx_buffer[3] == UID1 && Rx_buffer[4] == UID2 &&
-        Rx_buffer[5] == UID3) {
+    if (Rx_buffer[1] == UID0 && Rx_buffer[2] == UID1 && Rx_buffer[3] == UID2 &&
+        Rx_buffer[4] == UID3) {
       // Enviar o status de cada rele
       Buffer_TX[0] = start_byte;
       Buffer_TX[1] = TAMANHO_BUFFER;
-      Buffer_TX[2] = PGM_ID;
-      Buffer_TX[3] = UID0;
-      Buffer_TX[4] = UID1;
-      Buffer_TX[5] = UID2;
-      Buffer_TX[6] = UID3;
-      Buffer_TX[7] = 'S';
-      Buffer_TX[8] = 0x02; // 0x02 -> pacote Escravo
-      Buffer_TX[9] = status_rele.Byte;
-      Buffer_TX[10] = checksum = ~(Buffer_TX[0] ^ Buffer_TX[1] ^ Buffer_TX[2] ^
+      Buffer_TX[2] = UID0;
+      Buffer_TX[3] = UID1;
+      Buffer_TX[4] = UID2;
+      Buffer_TX[5] = UID3;
+      Buffer_TX[6] = 'S';
+      Buffer_TX[7] = 0x02; // 0x02 -> pacote Escravo
+      Buffer_TX[8] = status_rele.Byte;
+      Buffer_TX[9] = checksum = ~(Buffer_TX[0] ^ Buffer_TX[1] ^ Buffer_TX[2] ^
                                   Buffer_TX[3] ^ Buffer_TX[4] ^ Buffer_TX[5] ^
-                                  Buffer_TX[6] ^ Buffer_TX[7] ^ Buffer_TX[8] ^ Buffer_TX[9]);
-      Buffer_TX[11] = stop_byte;
+                                  Buffer_TX[6] ^ Buffer_TX[7] ^ Buffer_TX[8]);
+      Buffer_TX[10] = stop_byte;
       
       delay_aleatorio = gerar_intervalo(UID0, UID1, UID2, UID3, systick);
 
@@ -357,18 +348,17 @@ void Controle() {
 
       Buffer_TX[0] = start_byte;
       Buffer_TX[1] = TAMANHO_BUFFER;
-      Buffer_TX[2] = PGM_ID;
-      Buffer_TX[3] = UID0;
-      Buffer_TX[4] = UID1;
-      Buffer_TX[5] = UID2;
-      Buffer_TX[6] = UID3;
-      Buffer_TX[7] = 'T';
-      Buffer_TX[8] = 0x02;
-      Buffer_TX[9] = ACK;
-      Buffer_TX[10] = ~(Buffer_TX[0] ^ Buffer_TX[1] ^ Buffer_TX[2] ^
+      Buffer_TX[2] = UID0;
+      Buffer_TX[3] = UID1;
+      Buffer_TX[4] = UID2;
+      Buffer_TX[5] = UID3;
+      Buffer_TX[6] = 'T';
+      Buffer_TX[7] = 0x02;
+      Buffer_TX[8] = ACK;
+      Buffer_TX[9] = checksum = ~(Buffer_TX[0] ^ Buffer_TX[1] ^ Buffer_TX[2] ^
                                   Buffer_TX[3] ^ Buffer_TX[4] ^ Buffer_TX[5] ^
-                                  Buffer_TX[6] ^ Buffer_TX[7] ^ Buffer_TX[8] ^ Buffer_TX[9]);
-      Buffer_TX[11] = stop_byte;
+                                  Buffer_TX[6] ^ Buffer_TX[7] ^ Buffer_TX[8]);
+      Buffer_TX[10] = stop_byte;
 
       estado = TRANSMIT;
 
@@ -377,18 +367,17 @@ void Controle() {
   case DELETE: {
     Buffer_TX[0] = start_byte;
     Buffer_TX[1] = TAMANHO_BUFFER;
-    Buffer_TX[2] = PGM_ID;
-    Buffer_TX[3] = UID0;
-    Buffer_TX[4] = UID1;
-    Buffer_TX[5] = UID2;
-    Buffer_TX[6] = UID3;
-    Buffer_TX[7] = 'D';
-    Buffer_TX[8] = 0x02;
-    Buffer_TX[9] = ACK;
-    Buffer_TX[10] = ~(Buffer_TX[0] ^ Buffer_TX[1] ^ Buffer_TX[2] ^
+    Buffer_TX[2] = UID0;
+    Buffer_TX[3] = UID1;
+    Buffer_TX[4] = UID2;
+    Buffer_TX[5] = UID3;
+    Buffer_TX[6] = 'D';
+    Buffer_TX[7] = 0x02;
+    Buffer_TX[8] = ACK;
+    Buffer_TX[9] = checksum = ~(Buffer_TX[0] ^ Buffer_TX[1] ^ Buffer_TX[2] ^
                                 Buffer_TX[3] ^ Buffer_TX[4] ^ Buffer_TX[5] ^
-                                Buffer_TX[6] ^ Buffer_TX[7] ^ Buffer_TX[8] ^ Buffer_TX[9]);
-    Buffer_TX[11] = stop_byte;
+                                Buffer_TX[6] ^ Buffer_TX[7] ^ Buffer_TX[8]);
+    Buffer_TX[10] = stop_byte;
 
     estado = TRANSMIT;
   } break;
