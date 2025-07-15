@@ -8,6 +8,7 @@
 #include "xmc_usic.h"
 #include <stdint.h>
 
+#define IDT 1
 #define ADRS0 2
 #define ADRS1 3
 #define ADRS2 4
@@ -134,7 +135,7 @@ uint16_t gerar_intervalo(uint8_t UID0, uint8_t UID1, uint8_t UID2, uint8_t UID3,
   semente ^= (semente >> 16);
 
   // Reduz o valor para o intervalo [20, 500]
-  uint16_t intervalo = 20 + (semente % (950 - 20 + 1));
+  uint16_t intervalo = 20 + (semente % (450 - 2 + 1));
   return intervalo;
 }
 
@@ -174,7 +175,9 @@ void USIC0_1_IRQHandler(void) {
       } else {
         if (rx == 0x81) {
           recebendo = false;
-          if (Rx_buffer[ORIGIN] == MASTER) {
+          if (Rx_buffer[ORIGIN] == MASTER &&
+              (Rx_buffer[IDT] == PGM_ID ||
+               Rx_buffer[IDT] == PGM_BROADCAST_ID)) {
             pacote_completo = true;
           } else {
             Rx_buffer_index = 0;
@@ -263,6 +266,7 @@ void Controle() {
 
     XMC_GPIO_SetOutputHigh(Bus_Controle_PORT, Bus_Controle_PIN);
     if (pacote_completo) {
+
       if (Rx_buffer[FUNCTION] == 'A' && !cadastrado) {
 
         if (Rx_buffer[ADRS0] == UID0 && Rx_buffer[ADRS1] == UID1 &&
@@ -285,10 +289,22 @@ void Controle() {
         ligar_rele.Byte = Rx_buffer[DATA];
         estado = RL_CONTROL;
       } else if (Rx_buffer[FUNCTION] == 'D') {
-        ligar_rele.Byte = 0x00;
-        cadastrado = false;
-        pacote_obsoleto = true;
-        estado = RL_CONTROL;
+        if (Rx_buffer[IDT] == PGM_BROADCAST_ID) {
+          ligar_rele.Byte = 0x00;
+          cadastrado = false;
+          pacote_obsoleto = true;
+          estado = RL_CONTROL;
+        }
+
+        if (Rx_buffer[IDT] == PGM_ID && Rx_buffer[ADRS0] == UID0 &&
+            Rx_buffer[ADRS1] == UID1 && Rx_buffer[ADRS2] == UID2 &&
+            Rx_buffer[ADRS3] == UID3) {
+			  ligar_rele.Byte = 0x00;
+	          cadastrado = false;
+	          pacote_obsoleto = true;
+	          estado = RL_CONTROL;
+        }
+
       } else {
         pacote_obsoleto = true;
         estado = LIMPAR;
