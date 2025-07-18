@@ -41,7 +41,7 @@ typedef enum {
 } PGM_FUNCTION_t;
 
 uint32_t UniqueChipID[4] = {0, 0, 0, 0};
-uint8_t uid = 0;
+uint8_t new_address = 0;
 
 // Flags de envio e recepção de dados
 volatile bool pacote_completo = false;
@@ -186,7 +186,7 @@ void montar_pacote(uint8_t size, uint8_t ID, uint8_t Addrs, uint8_t function,
   destino[7] = stop_byte;
 }
 
-void montar_pacote_cadastro(uint8_t size, uint8_t ID, uint8_t Function, uint8_t Addrs, uint8_t Addrs_1,
+void montar_pacote_cadastro(uint8_t size, uint8_t ID, uint8_t Addrs,uint8_t Function,  uint8_t Addrs_1,
                             uint8_t Addrs_2, uint8_t Addrs_3, uint8_t Addrs_4, uint8_t data,
                             volatile uint8_t *destino) {
   destino[0] = start_byte;
@@ -198,7 +198,7 @@ void montar_pacote_cadastro(uint8_t size, uint8_t ID, uint8_t Function, uint8_t 
   destino[6] = Addrs_2; // UID1
   destino[7] = Addrs_3; // UID2
   destino[8] = Addrs_4; // UID3 
-  destino[9] = data; // uid CRC-8
+  destino[9] = data; // new_address CRC-8
   destino[10] =
       ~(destino[0] ^ destino[1] ^ destino[2] ^ destino[3] ^ destino[4] ^
         destino[5] ^ destino[6] ^ destino[7] ^ destino[8] ^ destino[9]);
@@ -314,18 +314,18 @@ void Controle() {
 
       if (Rx_buffer[FUNCTION] == PGM_REGISTER && !cadastrado) {
 
-        if (Rx_buffer[UNIQUEID] == uid) {
+        if (Rx_buffer[UNIQUEID] == new_address) {
           numero_modulo = Rx_buffer[DATA];
           cadastrado = true;
         } else {
           estado = GET_UID;
         }
 
-      } else if (Rx_buffer[FUNCTION] == PGM_STATUS && Rx_buffer[UNIQUEID] == uid) {
+      } else if (Rx_buffer[FUNCTION] == PGM_STATUS && Rx_buffer[UNIQUEID] == new_address) {
         cadastrado = true;
         numero_modulo = Rx_buffer[DATA];
         estado = STATUS_RL;
-      } else if (Rx_buffer[FUNCTION] == PGM_TOGGLE && Rx_buffer[UNIQUEID] == uid) {
+      } else if (Rx_buffer[FUNCTION] == PGM_TOGGLE && Rx_buffer[UNIQUEID] == new_address) {
         ligar_rele.Byte = Rx_buffer[DATA];
         estado = RL_CONTROL;
       } else if (Rx_buffer[FUNCTION] == PGM_DELETE) {
@@ -336,7 +336,7 @@ void Controle() {
           estado = RL_CONTROL;
         }
 
-        if (Rx_buffer[IDT] == PGM_ID && Rx_buffer[UNIQUEID] == uid) {
+        if (Rx_buffer[IDT] == PGM_ID && Rx_buffer[UNIQUEID] == new_address) {
           ligar_rele.Byte = 0x00;
           cadastrado = false;
           pacote_obsoleto = true;
@@ -354,18 +354,18 @@ void Controle() {
   case GET_UID: {
     // Enviar o UID do dispositivo
     buffer_size = 12;
-    montar_pacote_cadastro(buffer_size, PGM_ID_RESPONSE, PGM_REGISTER, 0x00, UID0, UID1, UID2, UID3,
-                           uid, Buffer_TX);
+    montar_pacote_cadastro(buffer_size, PGM_ID_RESPONSE, 0x00, PGM_REGISTER, UID0, UID1, UID2, UID3,
+                           new_address, Buffer_TX);
 	
     estado = TRANSMIT;
 
   } break;
 
   case STATUS_RL: {
-    if (Rx_buffer[UNIQUEID] == uid) {
+    if (Rx_buffer[UNIQUEID] == new_address) {
       // Enviar o status de cada rele
 	  buffer_size = 8;
-      montar_pacote(buffer_size, PGM_ID_RESPONSE, uid, PGM_STATUS, status_rele.Byte, Buffer_TX);
+      montar_pacote(buffer_size, PGM_ID_RESPONSE, new_address, PGM_STATUS, status_rele.Byte, Buffer_TX);
 
       delay_aleatorio = gerar_intervalo(UID0, UID1, UID2, UID3, systick);
 
@@ -392,14 +392,14 @@ void Controle() {
     }
 	
 	buffer_size = 8;
-    montar_pacote(buffer_size, PGM_ID_RESPONSE, uid, PGM_TOGGLE, ACK, Buffer_TX);
+    montar_pacote(buffer_size, PGM_ID_RESPONSE, new_address, PGM_TOGGLE, ACK, Buffer_TX);
     estado = TRANSMIT;
 
   } break;
 
   case DELETE: {
 	buffer_size = 8;
-    montar_pacote(buffer_size, PGM_ID_RESPONSE, uid, PGM_DELETE, ACK, Buffer_TX);
+    montar_pacote(buffer_size, PGM_ID_RESPONSE, new_address, PGM_DELETE, ACK, Buffer_TX);
     estado = TRANSMIT;
   } break;
 
@@ -485,7 +485,7 @@ int main(void) {
   XMC_GPIO_SetOutputLow(LED_ST_PORT, LED_ST_PIN);
 
   get_UID();
-  uid = crc8((uint8_t *)UniqueChipID, 16);
+  new_address = crc8((uint8_t *)UniqueChipID, 16);
 
   while (1) {
     Controle();
