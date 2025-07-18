@@ -14,8 +14,7 @@
 #define ADRS2 4
 #define ADRS3 5
 #define FUNCTION 6
-#define ORIGIN 7
-#define DATA 8
+#define DATA 7
 
 #define MASTER 1
 #define SLAVE 2
@@ -29,7 +28,11 @@ volatile uint8_t Buffer_TX[TAMANHO_BUFFER] = {0};
 typedef enum {
   PGM_ID = 0x01,
   PGM_BROADCAST_ID = 0x02,
+  PGM_ID_RESPONSE = 0x03,
 } PGM_DEVICE_ID_t;
+
+uint32_t UniqueChipID[4] = {0, 0, 0,0};
+uint8_t id = 0;
 
 // Flags de envio e recepção de dados
 volatile bool pacote_completo = false;
@@ -93,13 +96,26 @@ XMC_GPIO_PORT_t *const rele_ports[5] = {RL1_PORT, RL2_PORT, RL3_PORT, RL4_PORT,
 
 const uint8_t rele_pins[5] = {RL1_PIN, RL2_PIN, RL3_PIN, RL4_PIN, RL5_PIN};
 
+uint8_t crc8(const uint8_t *data, uint8_t len) {
+    uint8_t crc = 0x00;
+    for (uint8_t i = 0; i < len; i++) {
+        crc ^= data[i];
+        for (uint8_t j = 0; j < 8; j++) {
+            if (crc & 0x80)
+                crc = (crc << 1) ^ 0x07;
+            else
+                crc <<= 1;
+        }
+    }
+    return crc;
+}
+
 // Rotina para salvar o UID do micro
 void get_UID() {
-  uint32_t UniqueChipID[3] = {0, 0, 0};
 
   volatile uint32_t *UCIDptr = (volatile uint32_t *)0x10000FF0;
 
-  for (uint8_t Count = 0; Count < 3; Count++) {
+  for (uint8_t Count = 0; Count < 4; Count++) {
     UniqueChipID[Count] = UCIDptr[Count];
   }
 
@@ -109,16 +125,22 @@ void get_UID() {
   UID3 = (UniqueChipID[0] >> 24) & 0xFF;
 }
 
-// void get_UID() {
-//   uint32_t *UCIDptr;
-//   uint32_t UniqueChipID = 0;;
+// Rotina para salvar o UID do micro
+//void get_UID() {
+//  uint32_t UniqueChipID[3] = {0, 0, 0};
 //
-//   UCIDptr = (uint32_t *)0x40010004;
+//  volatile uint32_t *UCIDptr = (volatile uint32_t *)0x10000FF0;
 //
-//   UniqueChipID = *UCIDptr;
+//  for (uint8_t Count = 0; Count < 3; Count++) {
+//    UniqueChipID[Count] = UCIDptr[Count];
+//  }
 //
-//   UID0 = (UniqueChipID) & 0xFFFFFFFF;
-// }
+//  UID0 = (UniqueChipID[0] >> 0) & 0xFF;
+//  UID1 = (UniqueChipID[0] >> 8) & 0xFF;
+//  UID2 = (UniqueChipID[0] >> 16) & 0xFF;
+//  UID3 = (UniqueChipID[0] >> 24) & 0xFF;
+//}
+
 
 uint16_t gerar_intervalo(uint8_t UID0, uint8_t UID1, uint8_t UID2, uint8_t UID3,
                          uint32_t tempo) {
@@ -140,8 +162,7 @@ uint16_t gerar_intervalo(uint8_t UID0, uint8_t UID1, uint8_t UID2, uint8_t UID3,
 }
 
 void montar_pacote(uint8_t size, uint8_t ID, uint8_t Addrs_1, uint8_t Addrs_2,
-                   uint8_t Addrs_3, uint8_t Addrs_4, uint8_t function,
-                   uint8_t origin, uint8_t data, volatile uint8_t *destino) {
+                   uint8_t Addrs_3, uint8_t Addrs_4, uint8_t function, uint8_t data, volatile uint8_t *destino) {
   destino[0] = start_byte;
   destino[1] = size;
   destino[2] = ID;
@@ -150,14 +171,13 @@ void montar_pacote(uint8_t size, uint8_t ID, uint8_t Addrs_1, uint8_t Addrs_2,
   destino[5] = Addrs_3;
   destino[6] = Addrs_4;
   destino[7] = function;
-  destino[8] = origin;
-  destino[9] = data;
+  destino[8] = data;
 
-  destino[10] =
+  destino[9] =
       ~(destino[0] ^ destino[1] ^ destino[2] ^ destino[3] ^ destino[4] ^
-        destino[5] ^ destino[6] ^ destino[7] ^ destino[8] ^ destino[9]);
+        destino[5] ^ destino[6] ^ destino[7] ^ destino[8]);
 
-  destino[11] = stop_byte;
+  destino[10] = stop_byte;
 }
 
 // Rotina para receber dados
@@ -175,9 +195,8 @@ void USIC0_1_IRQHandler(void) {
       } else {
         if (rx == 0x81) {
           recebendo = false;
-          if (Rx_buffer[ORIGIN] == MASTER &&
-              (Rx_buffer[IDT] == PGM_ID ||
-               Rx_buffer[IDT] == PGM_BROADCAST_ID)) {
+          if (Rx_buffer[IDT] == PGM_ID ||
+               Rx_buffer[IDT] == PGM_BROADCAST_ID) {
             pacote_completo = true;
           } else {
             Rx_buffer_index = 0;
@@ -271,7 +290,7 @@ void Controle() {
 
         if (Rx_buffer[ADRS0] == UID0 && Rx_buffer[ADRS1] == UID1 &&
             Rx_buffer[ADRS2] == UID2 && Rx_buffer[ADRS3] == UID3) {
-          numero_modulo = Rx_buffer[8];
+          numero_modulo = Rx_buffer[DATA];
           cadastrado = true;
         } else {
           estado = GET_UID;
@@ -315,7 +334,7 @@ void Controle() {
 
   case GET_UID: {
     // Enviar o UID do dispositivo
-    montar_pacote(12, PGM_ID, UID0, UID1, UID2, UID3, 'A', 0x02, ACK,
+    montar_pacote(12, PGM_ID_RESPONSE, UID0, UID1, UID2, UID3, 'A', ACK,
                   Buffer_TX);
 
     estado = TRANSMIT;
@@ -327,7 +346,7 @@ void Controle() {
         Rx_buffer[ADRS2] == UID2 && Rx_buffer[ADRS3] == UID3) {
       // Enviar o status de cada rele
 
-      montar_pacote(12, PGM_ID, UID0, UID1, UID2, UID3, 'S', 0x02,
+      montar_pacote(12, PGM_ID_RESPONSE, UID0, UID1, UID2, UID3, 'S',
                     status_rele.Byte, Buffer_TX);
 
       delay_aleatorio = gerar_intervalo(UID0, UID1, UID2, UID3, systick);
@@ -354,14 +373,14 @@ void Controle() {
       }
     }
 
-    montar_pacote(12, PGM_ID, UID0, UID1, UID2, UID3, 'T', 0x02, ACK,
+    montar_pacote(12, PGM_ID_RESPONSE, UID0, UID1, UID2, UID3, 'T', ACK,
                   Buffer_TX);
     estado = TRANSMIT;
 
   } break;
 
   case DELETE: {
-    montar_pacote(12, PGM_ID, UID0, UID1, UID2, UID3, 'D', 0x02, ACK,
+    montar_pacote(12, PGM_ID_RESPONSE, UID0, UID1, UID2, UID3, 'D', ACK,
                   Buffer_TX);
     estado = TRANSMIT;
   } break;
@@ -448,8 +467,10 @@ int main(void) {
   XMC_GPIO_SetOutputLow(LED_ST_PORT, LED_ST_PIN);
 
   get_UID();
+  id = crc8((uint8_t*)UniqueChipID, 16);
 
   while (1) {
     Controle();
+
   }
 }
