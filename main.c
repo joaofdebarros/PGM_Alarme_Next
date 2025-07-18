@@ -17,9 +17,10 @@
 //#define ADRS3 5
 #define FUNCTION 3
 #define DATA 4
+#define CHECKSUM 5
 
 #define TAMANHO_BUFFER 8
-#define TAMANHO_BUFFER_ACK 11
+#define TAMANHO_BUFFER_ACK 12
 uint8_t buffer_size = 8;
 // Buffer de envio e recepção de dados
 volatile uint8_t Rx_buffer[TAMANHO_BUFFER_ACK];
@@ -31,6 +32,13 @@ typedef enum {
   PGM_BROADCAST_ID = 0x02,
   PGM_ID_RESPONSE = 0x03,
 } PGM_DEVICE_ID_t;
+
+typedef enum {
+  PGM_REGISTER = 0x00,
+  PGM_TOGGLE = 0x01,
+  PGM_STATUS = 0x02,
+  PGM_DELETE = 0x03,
+} PGM_FUNCTION_t;
 
 uint32_t UniqueChipID[4] = {0, 0, 0, 0};
 uint8_t uid = 0;
@@ -49,6 +57,8 @@ uint8_t UID2 = 0;
 uint8_t UID3 = 0;
 uint8_t checksum = 0;
 #define stop_byte 0x81
+
+uint8_t checksum_validate = 0;
 
 #define ACK 0x06
 // Máquina de estados
@@ -157,7 +167,7 @@ uint16_t gerar_intervalo(uint8_t UID0, uint8_t UID1, uint8_t UID2, uint8_t UID3,
   semente ^= (semente >> 16);
 
   // Reduz o valor para o intervalo [20, 500]
-  uint16_t intervalo = 20 + (semente % (450 - 2 + 1));
+  uint16_t intervalo = 20 + (semente % (450 - 10 + 1));
   return intervalo;
 }
 
@@ -176,24 +186,24 @@ void montar_pacote(uint8_t size, uint8_t ID, uint8_t Addrs, uint8_t function,
   destino[7] = stop_byte;
 }
 
-void montar_pacote_cadastro(uint8_t size, uint8_t ID, uint8_t Addrs_1,
-                            uint8_t Addrs_2, uint8_t Addrs_3, uint8_t Addrs_4,
-                            uint8_t function, uint8_t data,
+void montar_pacote_cadastro(uint8_t size, uint8_t ID, uint8_t Function, uint8_t Addrs, uint8_t Addrs_1,
+                            uint8_t Addrs_2, uint8_t Addrs_3, uint8_t Addrs_4, uint8_t data,
                             volatile uint8_t *destino) {
   destino[0] = start_byte;
   destino[1] = size;
   destino[2] = ID;
-  destino[3] = Addrs_1; // UID0
-  destino[4] = Addrs_2; // UID1
-  destino[5] = Addrs_3; // UID2
-  destino[6] = Addrs_4; // UID3
-  destino[7] = function;
-  destino[8] = data; // uid CRC-8
-  destino[9] =
+  destino[3] = Addrs;
+  destino[4] = Function;
+  destino[5] = Addrs_1; // UID0
+  destino[6] = Addrs_2; // UID1
+  destino[7] = Addrs_3; // UID2
+  destino[8] = Addrs_4; // UID3 
+  destino[9] = data; // uid CRC-8
+  destino[10] =
       ~(destino[0] ^ destino[1] ^ destino[2] ^ destino[3] ^ destino[4] ^
-        destino[5] ^ destino[6] ^ destino[7] ^ destino[8]);
+        destino[5] ^ destino[6] ^ destino[7] ^ destino[8] ^ destino[9]);
 
-  destino[10] = stop_byte;
+  destino[11] = stop_byte;
 }
 
 // Rotina para receber dados
@@ -211,7 +221,8 @@ void USIC0_1_IRQHandler(void) {
       } else {
         if (rx == 0x81) {
           recebendo = false;
-          if (Rx_buffer[IDT] == PGM_ID || Rx_buffer[IDT] == PGM_BROADCAST_ID) {
+          checksum_validate = ~(0x7E ^ Rx_buffer[0] ^ Rx_buffer[1] ^ Rx_buffer[2] ^ Rx_buffer[3] ^ Rx_buffer[4]);
+          if ((Rx_buffer[IDT] == PGM_ID || Rx_buffer[IDT] == PGM_BROADCAST_ID) && Rx_buffer[CHECKSUM] == checksum_validate) {
             pacote_completo = true;
           } else {
             Rx_buffer_index = 0;
@@ -301,7 +312,7 @@ void Controle() {
     XMC_GPIO_SetOutputHigh(Bus_Controle_PORT, Bus_Controle_PIN);
     if (pacote_completo) {
 
-      if (Rx_buffer[FUNCTION] == 'A' && !cadastrado) {
+      if (Rx_buffer[FUNCTION] == PGM_REGISTER && !cadastrado) {
 
         if (Rx_buffer[UNIQUEID] == uid) {
           numero_modulo = Rx_buffer[DATA];
@@ -310,14 +321,14 @@ void Controle() {
           estado = GET_UID;
         }
 
-      } else if (Rx_buffer[FUNCTION] == 'S' && Rx_buffer[UNIQUEID] == uid) {
+      } else if (Rx_buffer[FUNCTION] == PGM_STATUS && Rx_buffer[UNIQUEID] == uid) {
         cadastrado = true;
         numero_modulo = Rx_buffer[DATA];
         estado = STATUS_RL;
-      } else if (Rx_buffer[FUNCTION] == 'T' && Rx_buffer[UNIQUEID] == uid) {
+      } else if (Rx_buffer[FUNCTION] == PGM_TOGGLE && Rx_buffer[UNIQUEID] == uid) {
         ligar_rele.Byte = Rx_buffer[DATA];
         estado = RL_CONTROL;
-      } else if (Rx_buffer[FUNCTION] == 'D') {
+      } else if (Rx_buffer[FUNCTION] == PGM_DELETE) {
         if (Rx_buffer[IDT] == PGM_BROADCAST_ID) {
           ligar_rele.Byte = 0x00;
           cadastrado = false;
@@ -342,8 +353,8 @@ void Controle() {
 
   case GET_UID: {
     // Enviar o UID do dispositivo
-    buffer_size = 11;
-    montar_pacote_cadastro(buffer_size, PGM_ID_RESPONSE, UID0, UID1, UID2, UID3, 'A',
+    buffer_size = 12;
+    montar_pacote_cadastro(buffer_size, PGM_ID_RESPONSE, PGM_REGISTER, 0x00, UID0, UID1, UID2, UID3,
                            uid, Buffer_TX);
 	
     estado = TRANSMIT;
@@ -354,7 +365,7 @@ void Controle() {
     if (Rx_buffer[UNIQUEID] == uid) {
       // Enviar o status de cada rele
 	  buffer_size = 8;
-      montar_pacote(buffer_size, PGM_ID_RESPONSE, uid, 'S', status_rele.Byte, Buffer_TX);
+      montar_pacote(buffer_size, PGM_ID_RESPONSE, uid, PGM_STATUS, status_rele.Byte, Buffer_TX);
 
       delay_aleatorio = gerar_intervalo(UID0, UID1, UID2, UID3, systick);
 
@@ -381,14 +392,14 @@ void Controle() {
     }
 	
 	buffer_size = 8;
-    montar_pacote(buffer_size, PGM_ID_RESPONSE, uid, 'T', ACK, Buffer_TX);
+    montar_pacote(buffer_size, PGM_ID_RESPONSE, uid, PGM_TOGGLE, ACK, Buffer_TX);
     estado = TRANSMIT;
 
   } break;
 
   case DELETE: {
 	buffer_size = 8;
-    montar_pacote(buffer_size, PGM_ID_RESPONSE, uid, 'D', ACK, Buffer_TX);
+    montar_pacote(buffer_size, PGM_ID_RESPONSE, uid, PGM_DELETE, ACK, Buffer_TX);
     estado = TRANSMIT;
   } break;
 
