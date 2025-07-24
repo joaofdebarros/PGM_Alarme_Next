@@ -7,21 +7,27 @@
 #include "xmc_uart.h"
 #include "xmc_usic.h"
 #include <stdint.h>
+#include <xmc_flash.h>
+
+#define FLASH_SECTOR_ADDR 0x10008F00U // Endereço de setor livre
 
 #define SIZE 0
 #define IDT 1
 #define UNIQUEID 2
-//#define ADRS0 2
-//#define ADRS1 3
-//#define ADRS2 4
-//#define ADRS3 5
+// #define ADRS0 2
+// #define ADRS1 3
+// #define ADRS2 4
+// #define ADRS3 5
 #define FUNCTION 3
 #define DATA 4
 #define CHECKSUM 5
 
 #define TAMANHO_BUFFER 8
 #define TAMANHO_BUFFER_ACK 12
+#define NAK 0x15
+uint8_t incremento = 0;
 uint8_t buffer_size = 8;
+uint8_t package_size = 0;
 // Buffer de envio e recepção de dados
 volatile uint8_t Rx_buffer[TAMANHO_BUFFER_ACK];
 volatile uint8_t Rx_buffer_index = 0;
@@ -38,10 +44,11 @@ typedef enum {
   PGM_TOGGLE = 0x01,
   PGM_STATUS = 0x02,
   PGM_DELETE = 0x03,
+  PGM_RETRY_CRC = 0x04,
 } PGM_FUNCTION_t;
 
 uint32_t UniqueChipID[4] = {0, 0, 0, 0};
-uint8_t new_address = 0;
+uint8_t crc_address = 0;
 
 // Flags de envio e recepção de dados
 volatile bool pacote_completo = false;
@@ -59,12 +66,14 @@ uint8_t checksum = 0;
 #define stop_byte 0x81
 
 uint8_t checksum_validate = 0;
+volatile bool checksum_ok = false;
 
 #define ACK 0x06
 // Máquina de estados
 uint8_t estado = 0;
 
 // Variáveis de tempo/delays
+uint8_t num_aleatorio = 200;
 uint16_t delay_aleatorio = 0;
 uint8_t Blinking_gap = 10;
 uint16_t Blink_wait = 1000;
@@ -107,8 +116,9 @@ XMC_GPIO_PORT_t *const rele_ports[5] = {RL1_PORT, RL2_PORT, RL3_PORT, RL4_PORT,
 
 const uint8_t rele_pins[5] = {RL1_PIN, RL2_PIN, RL3_PIN, RL4_PIN, RL5_PIN};
 
-uint8_t crc8(const uint8_t *data, uint8_t len) {
+uint8_t crc8(const uint8_t *data, uint8_t len, uint8_t inc) {
   uint8_t crc = 0x00;
+
   for (uint8_t i = 0; i < len; i++) {
     crc ^= data[i];
     for (uint8_t j = 0; j < 8; j++) {
@@ -118,7 +128,43 @@ uint8_t crc8(const uint8_t *data, uint8_t len) {
         crc <<= 1;
     }
   }
+
+  // Aplica o inc no final
+  crc ^= inc;
+  for (uint8_t j = 0; j < 8; j++) {
+    if (crc & 0x80)
+      crc = (crc << 1) ^ 0x07;
+    else
+      crc <<= 1;
+  }
+
   return crc;
+}
+
+void update_flash(uint8_t valor) {
+  uint32_t dado = 0xFFFFFFFF;
+  dado &= 0xFFFFFF00; // limpa os 8 bits inferiores
+  dado |= valor;      // insere o valor
+
+  while (XMC_FLASH_IsBusy())
+    ;
+  XMC_FLASH_ErasePage((uint32_t *)FLASH_SECTOR_ADDR);
+  while (XMC_FLASH_IsBusy())
+    ;
+  XMC_FLASH_ProgramPage((uint32_t *)FLASH_SECTOR_ADDR, &dado);
+  while (XMC_FLASH_IsBusy())
+    ;
+}
+
+void read_flash(void) {
+  const uint32_t *ptr = (uint32_t *)FLASH_SECTOR_ADDR;
+
+  // Verifica se está em branco (0xFF)
+  if (*ptr == 0xFFFFFFFF) {
+    incremento = 0; // Valor padrão se ainda não foi escrito
+  } else {
+    incremento = *ptr;
+  }
 }
 
 // Rotina para salvar o UID do micro
@@ -167,7 +213,7 @@ uint16_t gerar_intervalo(uint8_t UID0, uint8_t UID1, uint8_t UID2, uint8_t UID3,
   semente ^= (semente >> 16);
 
   // Reduz o valor para o intervalo [20, 500]
-  uint16_t intervalo = 20 + (semente % (450 - 10 + 1));
+  uint16_t intervalo = 20 + (semente % (900 - 20 + 1));
   return intervalo;
 }
 
@@ -186,8 +232,9 @@ void montar_pacote(uint8_t size, uint8_t ID, uint8_t Addrs, uint8_t function,
   destino[7] = stop_byte;
 }
 
-void montar_pacote_cadastro(uint8_t size, uint8_t ID, uint8_t Addrs,uint8_t Function,  uint8_t Addrs_1,
-                            uint8_t Addrs_2, uint8_t Addrs_3, uint8_t Addrs_4, uint8_t data,
+void montar_pacote_cadastro(uint8_t size, uint8_t ID, uint8_t Addrs,
+                            uint8_t Function, uint8_t Addrs_1, uint8_t Addrs_2,
+                            uint8_t Addrs_3, uint8_t Addrs_4, uint8_t data,
                             volatile uint8_t *destino) {
   destino[0] = start_byte;
   destino[1] = size;
@@ -197,8 +244,8 @@ void montar_pacote_cadastro(uint8_t size, uint8_t ID, uint8_t Addrs,uint8_t Func
   destino[5] = Addrs_1; // UID0
   destino[6] = Addrs_2; // UID1
   destino[7] = Addrs_3; // UID2
-  destino[8] = Addrs_4; // UID3 
-  destino[9] = data; // new_address CRC-8
+  destino[8] = Addrs_4; // UID3
+  destino[9] = data;    // crc_address CRC-8
   destino[10] =
       ~(destino[0] ^ destino[1] ^ destino[2] ^ destino[3] ^ destino[4] ^
         destino[5] ^ destino[6] ^ destino[7] ^ destino[8] ^ destino[9]);
@@ -213,16 +260,43 @@ void USIC0_1_IRQHandler(void) {
 
       uint8_t rx = XMC_UART_CH_GetReceivedData(UART1_HW);
       if (!recebendo) {
-        if (rx == 0x7E) {
+        if (rx == start_byte) {
           recebendo = true;
           Rx_buffer_index = 0;
         }
 
       } else {
-        if (rx == 0x81) {
+        
+        if (rx == stop_byte && (Rx_buffer_index == Rx_buffer[0] - 2)) {
           recebendo = false;
-          checksum_validate = ~(0x7E ^ Rx_buffer[0] ^ Rx_buffer[1] ^ Rx_buffer[2] ^ Rx_buffer[3] ^ Rx_buffer[4]);
-          if ((Rx_buffer[IDT] == PGM_ID || Rx_buffer[IDT] == PGM_BROADCAST_ID) && Rx_buffer[CHECKSUM] == checksum_validate) {
+
+          switch (Rx_buffer[0]) {
+          case 8: {
+            checksum_validate = ~(0x7E ^ Rx_buffer[0] ^ Rx_buffer[1] ^
+                                  Rx_buffer[2] ^ Rx_buffer[3] ^ Rx_buffer[4]);
+            if (Rx_buffer[CHECKSUM] == checksum_validate) {
+              checksum_ok = true;
+            } else {
+              checksum_ok = false;
+            }
+          } break;
+
+          case 12: {
+            checksum_validate =
+                ~(0x7E ^ Rx_buffer[0] ^ Rx_buffer[1] ^ Rx_buffer[2] ^
+                  Rx_buffer[3] ^ Rx_buffer[4] ^ Rx_buffer[5] ^ Rx_buffer[6] ^
+                  Rx_buffer[7] ^ Rx_buffer[8]);
+            if (Rx_buffer[9] == checksum_validate) {
+              checksum_ok = true;
+            } else {
+              checksum_ok = false;
+            }
+          } break;
+          }
+
+          if ((Rx_buffer[IDT] == PGM_ID ||
+               Rx_buffer[IDT] == PGM_BROADCAST_ID) &&
+              checksum_ok) {
             pacote_completo = true;
           } else {
             Rx_buffer_index = 0;
@@ -257,6 +331,10 @@ void blink_led_ST(uint8_t n) {
 
 // Rotina para controle dos tempos
 void SysTick_Handler(void) {
+
+  if (--num_aleatorio == 0) {
+    num_aleatorio = 200;
+  }
 
   if (--Blinking_gap == 0) {
 
@@ -314,18 +392,29 @@ void Controle() {
 
       if (Rx_buffer[FUNCTION] == PGM_REGISTER && !cadastrado) {
 
-        if (Rx_buffer[UNIQUEID] == new_address) {
-          numero_modulo = Rx_buffer[DATA];
+        if (Rx_buffer[UNIQUEID] == crc_address) {
+
+          numero_modulo = Rx_buffer[8];
           cadastrado = true;
+
         } else {
           estado = GET_UID;
         }
 
-      } else if (Rx_buffer[FUNCTION] == PGM_STATUS && Rx_buffer[UNIQUEID] == new_address) {
+      } else if (Rx_buffer[FUNCTION] == PGM_RETRY_CRC && Rx_buffer[8] == NAK) {
+        numero_modulo = 0;
+        cadastrado = false;
+        incremento = num_aleatorio;
+        update_flash(incremento);
+        crc_address = crc8((uint8_t *)UniqueChipID, 16, incremento);
+        estado = LIMPAR;
+      } else if (Rx_buffer[FUNCTION] == PGM_STATUS &&
+                 Rx_buffer[UNIQUEID] == crc_address) {
         cadastrado = true;
         numero_modulo = Rx_buffer[DATA];
         estado = STATUS_RL;
-      } else if (Rx_buffer[FUNCTION] == PGM_TOGGLE && Rx_buffer[UNIQUEID] == new_address) {
+      } else if (Rx_buffer[FUNCTION] == PGM_TOGGLE &&
+                 Rx_buffer[UNIQUEID] == crc_address) {
         ligar_rele.Byte = Rx_buffer[DATA];
         estado = RL_CONTROL;
       } else if (Rx_buffer[FUNCTION] == PGM_DELETE) {
@@ -336,7 +425,7 @@ void Controle() {
           estado = RL_CONTROL;
         }
 
-        if (Rx_buffer[IDT] == PGM_ID && Rx_buffer[UNIQUEID] == new_address) {
+        if (Rx_buffer[IDT] == PGM_ID && Rx_buffer[UNIQUEID] == crc_address) {
           ligar_rele.Byte = 0x00;
           cadastrado = false;
           pacote_obsoleto = true;
@@ -354,18 +443,19 @@ void Controle() {
   case GET_UID: {
     // Enviar o UID do dispositivo
     buffer_size = 12;
-    montar_pacote_cadastro(buffer_size, PGM_ID_RESPONSE, 0x00, PGM_REGISTER, UID0, UID1, UID2, UID3,
-                           new_address, Buffer_TX);
-	
+    montar_pacote_cadastro(buffer_size, PGM_ID_RESPONSE, 0x00, PGM_REGISTER,
+                           UID0, UID1, UID2, UID3, crc_address, Buffer_TX);
+
     estado = TRANSMIT;
 
   } break;
 
   case STATUS_RL: {
-    if (Rx_buffer[UNIQUEID] == new_address) {
+    if (Rx_buffer[UNIQUEID] == crc_address) {
       // Enviar o status de cada rele
-	  buffer_size = 8;
-      montar_pacote(buffer_size, PGM_ID_RESPONSE, new_address, PGM_STATUS, status_rele.Byte, Buffer_TX);
+      buffer_size = 8;
+      montar_pacote(buffer_size, PGM_ID_RESPONSE, crc_address, PGM_STATUS,
+                    status_rele.Byte, Buffer_TX);
 
       delay_aleatorio = gerar_intervalo(UID0, UID1, UID2, UID3, systick);
 
@@ -390,16 +480,18 @@ void Controle() {
         status_rele.Byte &= ~mask;
       }
     }
-	
-	buffer_size = 8;
-    montar_pacote(buffer_size, PGM_ID_RESPONSE, new_address, PGM_TOGGLE, ACK, Buffer_TX);
+
+    buffer_size = 8;
+    montar_pacote(buffer_size, PGM_ID_RESPONSE, crc_address, PGM_TOGGLE, ACK,
+                  Buffer_TX);
     estado = TRANSMIT;
 
   } break;
 
   case DELETE: {
-	buffer_size = 8;
-    montar_pacote(buffer_size, PGM_ID_RESPONSE, new_address, PGM_DELETE, ACK, Buffer_TX);
+    buffer_size = 8;
+    montar_pacote(buffer_size, PGM_ID_RESPONSE, crc_address, PGM_DELETE, ACK,
+                  Buffer_TX);
     estado = TRANSMIT;
   } break;
 
@@ -485,8 +577,11 @@ int main(void) {
   XMC_GPIO_SetOutputLow(LED_ST_PORT, LED_ST_PIN);
 
   get_UID();
-  new_address = crc8((uint8_t *)UniqueChipID, 16);
 
+  read_flash();
+  crc_address = crc8((uint8_t *)UniqueChipID, 16, incremento);
+
+  //  crc_address = 0x8D;
   while (1) {
     Controle();
   }
