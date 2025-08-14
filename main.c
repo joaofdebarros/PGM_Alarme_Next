@@ -254,7 +254,7 @@ uint16_t gerar_intervalo(uint8_t UID0, uint8_t UID1, uint8_t UID2, uint8_t UID3,
   semente *= 0x85ebca6b;
   semente ^= (semente >> 16);
 
-  // Reduz o valor para o intervalo 
+  // Reduz o valor para o intervalo
   uint16_t intervalo = 20 + (semente % (1100 - 10 + 1));
   return intervalo;
 }
@@ -657,9 +657,9 @@ int main(void) {
   get_UID();
 
   read_flash();
+
   crc_address = crc8((uint8_t *)UniqueChipID, 16, incremento);
 
-  //  crc_address = 0x8D;
   while (1) {
     Controle();
   }
