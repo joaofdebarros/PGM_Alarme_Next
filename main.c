@@ -254,8 +254,8 @@ uint16_t gerar_intervalo(uint8_t UID0, uint8_t UID1, uint8_t UID2, uint8_t UID3,
   semente *= 0x85ebca6b;
   semente ^= (semente >> 16);
 
-  // Reduz o valor para o intervalo [20, 500]
-  uint16_t intervalo = 20 + (semente % (1100 - 100 + 1));
+  // Reduz o valor para o intervalo 
+  uint16_t intervalo = 20 + (semente % (1100 - 10 + 1));
   return intervalo;
 }
 
@@ -322,7 +322,6 @@ void USIC0_1_IRQHandler(void) {
               checksum_ok = false;
             }
           } break;
-
           case 12: {
             checksum_validate =
                 ~(0x7E ^ Rx_buffer[0] ^ Rx_buffer[1] ^ Rx_buffer[2] ^
@@ -473,23 +472,34 @@ void Controle() {
         cadastrado = true;
         numero_modulo = Rx_buffer[DATA] + 1;
         estado = STATUS_RL;
-      } else if (Rx_buffer[FUNCTION] == PGM_TOGGLE &&
-                 Rx_buffer[UNIQUEID] == crc_address) {
-        ligar_rele.Byte = Rx_buffer[DATA];
-        estado = RL_CONTROL;
+      } else if (Rx_buffer[FUNCTION] == PGM_TOGGLE) {
+        if (Rx_buffer[IDT] == PGM_BROADCAST_ID) {
+          ligar_rele.Byte = Rx_buffer[DATA];
+          estado = RL_CONTROL;
+        } else if (Rx_buffer[IDT] == PGM_ID &&
+                   Rx_buffer[UNIQUEID] == crc_address) {
+          ligar_rele.Byte = Rx_buffer[DATA];
+          estado = RL_CONTROL;
+        } else {
+          pacote_obsoleto = true;
+          estado = LIMPAR;
+        }
+
       } else if (Rx_buffer[FUNCTION] == PGM_DELETE) {
         if (Rx_buffer[IDT] == PGM_BROADCAST_ID) {
           ligar_rele.Byte = 0x00;
           cadastrado = false;
           pacote_obsoleto = true;
           estado = RL_CONTROL;
-        }
-
-        if (Rx_buffer[IDT] == PGM_ID && Rx_buffer[UNIQUEID] == crc_address) {
+        } else if (Rx_buffer[IDT] == PGM_ID &&
+                   Rx_buffer[UNIQUEID] == crc_address) {
           ligar_rele.Byte = 0x00;
           cadastrado = false;
           pacote_obsoleto = true;
           estado = RL_CONTROL;
+        } else {
+          pacote_obsoleto = true;
+          estado = LIMPAR;
         }
 
       } else {
@@ -627,8 +637,9 @@ int main(void) {
   XMC_UART_CH_Start(UART1_HW);
 
   // Inverte a saída de dados da UART (nível lógico de TX)
-//  UART1_HW->SCTR = (UART1_HW->SCTR & ~(0X3 << 6)) | (0X1 << 6);
-  XMC_UART_CH_EnableInputInversion(UART1_HW,(XMC_UART_CH_INPUT_t)XMC_USIC_CH_INPUT_DX0);
+  //  UART1_HW->SCTR = (UART1_HW->SCTR & ~(0X3 << 6)) | (0X1 << 6);
+  XMC_UART_CH_EnableInputInversion(UART1_HW,
+                                   (XMC_UART_CH_INPUT_t)XMC_USIC_CH_INPUT_DX0);
   switch_to_gpio();
 
   while (XMC_USIC_CH_TXFIFO_IsFull(UART1_HW))
