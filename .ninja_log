@@ -113,3 +113,10 @@
 387	818	7768882659530062	build/XMC1100Q024/Debug/mtb-example-xmc-empty-app.elf	3312b2542dd3425e
 246	1148	7768968623795493	C:/Users/joao.victor/mtw/Modulo_PGM1/build/Debug/local/main.o	b78faeeb7b5795c0
 1149	2120	7768968632831523	build/XMC1100Q024/Debug/mtb-example-xmc-empty-app.elf	3312b2542dd3425e
+186	651	7769864761200202	C:/Users/joao.victor/mtw/Modulo_PGM1/build/Debug/bsps/XMC1100Q024/config/GeneratedSource/cycfg_system.o	f1ae4444685e0f3e
+127	656	7769864760605853	C:/Users/joao.victor/mtw/Modulo_PGM1/build/Debug/bsps/XMC1100Q024/config/GeneratedSource/cycfg_peripherals.o	2382f55f6782797f
+159	656	7769864760923823	C:/Users/joao.victor/mtw/Modulo_PGM1/build/Debug/bsps/XMC1100Q024/config/GeneratedSource/cycfg_pins.o	f52e3aa4f2d21da5
+108	660	7769864760419005	C:/Users/joao.victor/mtw/Modulo_PGM1/build/Debug/bsps/XMC1100Q024/config/GeneratedSource/cycfg.o	85650e70094f9899
+209	705	7769864761420180	C:/Users/joao.victor/mtw/Modulo_PGM1/build/Debug/bsps/XMC1100Q024/cybsp.o	7f15c5c162bea107
+43	352	7769865375080746	C:/Users/joao.victor/mtw/Modulo_PGM1/build/Debug/local/main.o	b78faeeb7b5795c0
+353	778	7769865378176161	build/XMC1100Q024/Debug/mtb-example-xmc-empty-app.elf	3312b2542dd3425e

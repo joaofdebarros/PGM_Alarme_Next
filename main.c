@@ -15,17 +15,15 @@
 #define SIZE 0
 #define IDT 1
 #define UNIQUEID 2
-// #define ADRS0 2
-// #define ADRS1 3
-// #define ADRS2 4
-// #define ADRS3 5
 #define FUNCTION 3
 #define DATA 4
 #define CHECKSUM 5
 
 #define TAMANHO_BUFFER 8
 #define TAMANHO_BUFFER_ACK 12
-#define NAK 0x15
+
+uint8_t ACK = 0x06;
+uint8_t NAK = 0x06;
 uint8_t incremento = 0;
 uint8_t buffer_size = 8;
 uint8_t package_size = 0;
@@ -69,7 +67,7 @@ uint8_t checksum = 0;
 uint8_t checksum_validate = 0;
 volatile bool checksum_ok = false;
 
-#define ACK 0x06
+
 // Máquina de estados
 uint8_t estado = 0;
 
@@ -118,31 +116,32 @@ XMC_GPIO_PORT_t *const rele_ports[5] = {RL1_PORT, RL2_PORT, RL3_PORT, RL4_PORT,
 const uint8_t rele_pins[5] = {RL1_PIN, RL2_PIN, RL3_PIN, RL4_PIN, RL5_PIN};
 
 void reset_uart() {
-  XMC_UART_CH_InitEx(UART1_HW, &UART1_config, false);
-  XMC_UART_CH_SetInputSource(
-      UART1_HW, (XMC_UART_CH_INPUT_t)XMC_USIC_CH_INPUT_DX0, UART1_DX0_INPUT);
-  XMC_UART_CH_SetSamplePoint(UART1_HW, 8U);
+  XMC_UART_CH_InitEx(UART_Bus_HW, &UART_Bus_config, false);
+  XMC_UART_CH_SetInputSource(UART_Bus_HW,
+                             (XMC_UART_CH_INPUT_t)XMC_USIC_CH_INPUT_DX0,
+                             UART_Bus_DX0_INPUT);
+  XMC_UART_CH_SetSamplePoint(UART_Bus_HW, 8U);
   XMC_USIC_CH_SetFractionalDivider(
-      UART1_HW, XMC_USIC_CH_BRG_CLOCK_DIVIDER_MODE_FRACTIONAL, 383U);
-  XMC_USIC_CH_SetBaudrateDivider(UART1_HW, XMC_USIC_CH_BRG_CLOCK_SOURCE_DIVIDER,
-                                 false, 624U, XMC_USIC_CH_BRG_CTQSEL_PDIV, 0U,
-                                 15U);
-  XMC_USIC_CH_RXFIFO_Configure(UART1_HW, UART1_RXFIFO_DPTR, UART1_RXFIFO_SIZE,
-                               UART1_RXFIFO_LIMIT);
-  XMC_USIC_CH_TXFIFO_Configure(UART1_HW, UART1_TXFIFO_DPTR, UART1_TXFIFO_SIZE,
-                               UART1_TXFIFO_LIMIT);
+      UART_Bus_HW, XMC_USIC_CH_BRG_CLOCK_DIVIDER_MODE_FRACTIONAL, 383U);
+  XMC_USIC_CH_SetBaudrateDivider(UART_Bus_HW,
+                                 XMC_USIC_CH_BRG_CLOCK_SOURCE_DIVIDER, false,
+                                 624U, XMC_USIC_CH_BRG_CTQSEL_PDIV, 0U, 15U);
+  XMC_USIC_CH_RXFIFO_Configure(UART_Bus_HW, UART_Bus_RXFIFO_DPTR,
+                               UART_Bus_RXFIFO_SIZE, UART_Bus_RXFIFO_LIMIT);
+  XMC_USIC_CH_TXFIFO_Configure(UART_Bus_HW, UART_Bus_TXFIFO_DPTR,
+                               UART_Bus_TXFIFO_SIZE, UART_Bus_TXFIFO_LIMIT);
   XMC_USIC_CH_SetInterruptNodePointer(
-      UART1_HW, XMC_USIC_CH_INTERRUPT_NODE_POINTER_RECEIVE, 1U);
+      UART_Bus_HW, XMC_USIC_CH_INTERRUPT_NODE_POINTER_RECEIVE, 1U);
   XMC_USIC_CH_TXFIFO_SetInterruptNodePointer(
-      UART1_HW, XMC_USIC_CH_TXFIFO_INTERRUPT_NODE_POINTER_STANDARD, 0U);
+      UART_Bus_HW, XMC_USIC_CH_TXFIFO_INTERRUPT_NODE_POINTER_STANDARD, 0U);
   XMC_USIC_CH_RXFIFO_SetInterruptNodePointer(
-      UART1_HW, XMC_USIC_CH_RXFIFO_INTERRUPT_NODE_POINTER_STANDARD, 1U);
-  XMC_UART_CH_EnableEvent(UART1_HW, XMC_UART_CH_EVENT_STANDARD_RECEIVE);
+      UART_Bus_HW, XMC_USIC_CH_RXFIFO_INTERRUPT_NODE_POINTER_STANDARD, 1U);
+  XMC_UART_CH_EnableEvent(UART_Bus_HW, XMC_UART_CH_EVENT_STANDARD_RECEIVE);
   XMC_USIC_CH_TXFIFO_EnableEvent(
-      UART1_HW, (uint32_t)XMC_USIC_CH_TXFIFO_EVENT_CONF_STANDARD);
+      UART_Bus_HW, (uint32_t)XMC_USIC_CH_TXFIFO_EVENT_CONF_STANDARD);
   XMC_USIC_CH_RXFIFO_EnableEvent(
-      UART1_HW, (uint32_t)XMC_USIC_CH_RXFIFO_EVENT_CONF_STANDARD);
-  XMC_UART_CH_Start(UART1_HW);
+      UART_Bus_HW, (uint32_t)XMC_USIC_CH_RXFIFO_EVENT_CONF_STANDARD);
+  XMC_UART_CH_Start(UART_Bus_HW);
 
   XMC_GPIO_Init(Bus_TX_PORT, Bus_TX_PIN, &Bus_TX_config);
   XMC_GPIO_SetHardwareControl(Bus_TX_PORT, Bus_TX_PIN, Bus_TX_HWO);
@@ -156,6 +155,23 @@ void switch_to_gpio() {
 void switch_to_uart() {
   XMC_GPIO_SetMode(Bus_TX_PORT, Bus_TX_PIN, XMC_GPIO_MODE_OUTPUT_ALT2);
   reset_uart();
+}
+
+uint8_t calculate_checksum(uint8_t *buffer, uint8_t payload_size, bool automatizador) {
+  uint8_t sum = 0;
+  uint8_t header_size = 0;
+  
+  if(automatizador){
+	header_size = 4;
+  }else{
+	header_size = 5;
+  }
+	
+  for (uint8_t i = 0; i < (header_size + payload_size); i++) {
+    sum ^= buffer[i];
+  }
+
+  return ~sum;
 }
 
 uint8_t crc8(const uint8_t *data, uint8_t len, uint8_t inc) {
@@ -198,14 +214,14 @@ void update_flash(uint8_t valor) {
     ;
 }
 
-void read_flash(void) {
+uint8_t read_flash() {
   const uint32_t *ptr = (uint32_t *)FLASH_SECTOR_ADDR;
 
   // Verifica se está em branco (0xFF)
   if (*ptr == 0xFFFFFFFF) {
-    incremento = 0; // Valor padrão se ainda não foi escrito
+    return 0; // Valor padrão se ainda não foi escrito
   } else {
-    incremento = *ptr;
+    return *ptr;
   }
 }
 
@@ -223,22 +239,6 @@ void get_UID() {
   UID2 = (UniqueChipID[0] >> 16) & 0xFF;
   UID3 = (UniqueChipID[0] >> 24) & 0xFF;
 }
-
-// Rotina para salvar o UID do micro
-// void get_UID() {
-//  uint32_t UniqueChipID[3] = {0, 0, 0};
-//
-//  volatile uint32_t *UCIDptr = (volatile uint32_t *)0x10000FF0;
-//
-//  for (uint8_t Count = 0; Count < 3; Count++) {
-//    UniqueChipID[Count] = UCIDptr[Count];
-//  }
-//
-//  UID0 = (UniqueChipID[0] >> 0) & 0xFF;
-//  UID1 = (UniqueChipID[0] >> 8) & 0xFF;
-//  UID2 = (UniqueChipID[0] >> 16) & 0xFF;
-//  UID3 = (UniqueChipID[0] >> 24) & 0xFF;
-//}
 
 uint16_t gerar_intervalo(uint8_t UID0, uint8_t UID1, uint8_t UID2, uint8_t UID3,
                          uint32_t tempo) {
@@ -259,48 +259,39 @@ uint16_t gerar_intervalo(uint8_t UID0, uint8_t UID1, uint8_t UID2, uint8_t UID3,
   return intervalo;
 }
 
-void montar_pacote(uint8_t size, uint8_t ID, uint8_t Addrs, uint8_t function,
-                   uint8_t data, volatile uint8_t *destino) {
-  destino[0] = start_byte;
-  destino[1] = size;
-  destino[2] = ID;
-  destino[3] = Addrs;
-  destino[4] = function;
-  destino[5] = data;
+uint8_t montar_pacote(uint8_t *tx, uint8_t size, uint8_t id, uint8_t adrs,
+                         uint8_t fnct, uint8_t *data, uint8_t payload_size, bool automatizador) {
+  uint8_t total_size = 0;
+  
+  if(automatizador){
+	total_size = payload_size + 6;
+  }else{
+	total_size = payload_size + 7;
+  }
+  
 
-  destino[6] = ~(destino[0] ^ destino[1] ^ destino[2] ^ destino[3] ^
-                 destino[4] ^ destino[5]);
+  tx[0] = start_byte;
+  tx[1] = size;
+  tx[2] = id;
+  tx[3] = adrs;
+  tx[4] = fnct;
 
-  destino[7] = stop_byte;
-}
+  for (int i = 0; i < payload_size; i++) {
+    tx[5 + i] = data[i];
+  }
 
-void montar_pacote_cadastro(uint8_t size, uint8_t ID, uint8_t Addrs,
-                            uint8_t Function, uint8_t Addrs_1, uint8_t Addrs_2,
-                            uint8_t Addrs_3, uint8_t Addrs_4, uint8_t data,
-                            volatile uint8_t *destino) {
-  destino[0] = start_byte;
-  destino[1] = size;
-  destino[2] = ID;
-  destino[3] = Addrs;
-  destino[4] = Function;
-  destino[5] = Addrs_1; // UID0
-  destino[6] = Addrs_2; // UID1
-  destino[7] = Addrs_3; // UID2
-  destino[8] = Addrs_4; // UID3
-  destino[9] = data;    // crc_address CRC-8
-  destino[10] =
-      ~(destino[0] ^ destino[1] ^ destino[2] ^ destino[3] ^ destino[4] ^
-        destino[5] ^ destino[6] ^ destino[7] ^ destino[8] ^ destino[9]);
+  tx[5 + payload_size] = calculate_checksum(tx, payload_size,automatizador);
+  tx[6 + payload_size] = stop_byte;
 
-  destino[11] = stop_byte;
+  return total_size;
 }
 
 // Rotina para receber dados
 void USIC0_1_IRQHandler(void) {
   if (pacote_completo == false) {
-    while (!XMC_USIC_CH_RXFIFO_IsEmpty(UART1_HW)) {
+    while (!XMC_USIC_CH_RXFIFO_IsEmpty(UART_Bus_HW)) {
 
-      uint8_t rx = XMC_UART_CH_GetReceivedData(UART1_HW);
+      uint8_t rx = XMC_UART_CH_GetReceivedData(UART_Bus_HW);
       if (!recebendo) {
         if (rx == start_byte) {
           recebendo = true;
@@ -355,9 +346,9 @@ void USIC0_1_IRQHandler(void) {
       }
     }
 
-    if ((TAMANHO_BUFFER - Rx_buffer_index) < UART1_RXFIFO_LIMIT) {
+    if ((TAMANHO_BUFFER - Rx_buffer_index) < UART_Bus_RXFIFO_LIMIT) {
       XMC_USIC_CH_RXFIFO_SetSizeTriggerLimit(
-          UART1_HW, XMC_USIC_CH_FIFO_SIZE_8WORDS,
+          UART_Bus_HW, XMC_USIC_CH_FIFO_SIZE_8WORDS,
           (TAMANHO_BUFFER - Rx_buffer_index) - 1);
     }
   }
@@ -513,7 +504,7 @@ void Controle() {
   case GET_UID: {
     // Enviar o UID do dispositivo
     buffer_size = 12;
-    montar_pacote_cadastro(buffer_size, PGM_ID_RESPONSE, 0x00, PGM_REGISTER,
+    montar_pacote(buffer_size, PGM_ID_RESPONSE, 0x00, PGM_REGISTER,
                            UID0, UID1, UID2, UID3, crc_address, Buffer_TX);
 
     estado = TRANSMIT;
@@ -524,8 +515,8 @@ void Controle() {
     if (Rx_buffer[UNIQUEID] == crc_address) {
       // Enviar o status de cada rele
       buffer_size = 8;
-      montar_pacote(buffer_size, PGM_ID_RESPONSE, crc_address, PGM_STATUS,
-                    status_rele.Byte, Buffer_TX);
+      montar_pacote(Buffer_TX,buffer_size, PGM_ID_RESPONSE, crc_address, PGM_STATUS,
+                    &status_rele.Byte, 1, false);
 
       delay_aleatorio = gerar_intervalo(UID0, UID1, UID2, UID3, systick);
 
@@ -552,16 +543,16 @@ void Controle() {
     }
 
     buffer_size = 8;
-    montar_pacote(buffer_size, PGM_ID_RESPONSE, crc_address, PGM_TOGGLE, ACK,
-                  Buffer_TX);
+    montar_pacote(Buffer_TX, buffer_size, PGM_ID_RESPONSE, crc_address, PGM_TOGGLE, &ACK, 1,
+                  false);
     estado = TRANSMIT;
 
   } break;
 
   case DELETE: {
     buffer_size = 8;
-    montar_pacote(buffer_size, PGM_ID_RESPONSE, crc_address, PGM_DELETE, ACK,
-                  Buffer_TX);
+    montar_pacote(Buffer_TX, buffer_size, PGM_ID_RESPONSE, crc_address, PGM_DELETE, &ACK, 1,
+                  false);
     estado = TRANSMIT;
   } break;
 
@@ -583,9 +574,9 @@ void Controle() {
       XMC_Delay(1);
       XMC_GPIO_SetOutputLow(Bus_Controle_PORT, Bus_Controle_PIN);
       for (int i = 0; i < buffer_size; i++) {
-        XMC_UART_CH_Transmit(UART1_HW, Buffer_TX[i]);
+        XMC_UART_CH_Transmit(UART_Bus_HW, Buffer_TX[i]);
       }
-      while (!XMC_USIC_CH_TXFIFO_IsEmpty(UART1_HW))
+      while (!XMC_USIC_CH_TXFIFO_IsEmpty(UART_Bus_HW))
         ;
 
       XMC_GPIO_SetOutputHigh(Bus_Controle_PORT, Bus_Controle_PIN);
@@ -634,20 +625,20 @@ int main(void) {
   NVIC_EnableIRQ(USIC0_1_IRQn);
   NVIC_SetPriority(USIC0_1_IRQn, 2);
 
-  XMC_UART_CH_Start(UART1_HW);
+  XMC_UART_CH_Start(UART_Bus_HW);
 
   // Inverte a saída de dados da UART (nível lógico de TX)
-  //  UART1_HW->SCTR = (UART1_HW->SCTR & ~(0X3 << 6)) | (0X1 << 6);
-  XMC_UART_CH_EnableInputInversion(UART1_HW,
+  //  UART_Bus_HW->SCTR = (UART_Bus_HW->SCTR & ~(0X3 << 6)) | (0X1 << 6);
+  XMC_UART_CH_EnableInputInversion(UART_Bus_HW,
                                    (XMC_UART_CH_INPUT_t)XMC_USIC_CH_INPUT_DX0);
   switch_to_gpio();
 
-  while (XMC_USIC_CH_TXFIFO_IsFull(UART1_HW))
+  while (XMC_USIC_CH_TXFIFO_IsFull(UART_Bus_HW))
     ;
 
-  if ((TAMANHO_BUFFER - Rx_buffer_index) < UART1_RXFIFO_LIMIT) {
+  if ((TAMANHO_BUFFER - Rx_buffer_index) < UART_Bus_RXFIFO_LIMIT) {
     XMC_USIC_CH_RXFIFO_SetSizeTriggerLimit(
-        UART1_HW, XMC_USIC_CH_FIFO_SIZE_8WORDS,
+        UART_Bus_HW, XMC_USIC_CH_FIFO_SIZE_8WORDS,
         (TAMANHO_BUFFER - Rx_buffer_index) - 1);
   }
 
@@ -656,7 +647,7 @@ int main(void) {
 
   get_UID();
 
-  read_flash();
+  incremento = read_flash();
 
   crc_address = crc8((uint8_t *)UniqueChipID, 16, incremento);
 

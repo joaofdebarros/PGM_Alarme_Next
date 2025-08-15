@@ -142,7 +142,7 @@
                         <Param id="input_hysteresis" value="XMC_GPIO_INPUT_HYSTERESIS_STANDARD"/>
                         <Param id="input_mode" value="XMC_GPIO_MODE_INPUT_TRISTATE"/>
                         <Param id="io_function" value="XMC_GPIO_INPUT_OUTPUT"/>
-                        <Param id="output_level" value="XMC_GPIO_OUTPUT_LEVEL_LOW"/>
+                        <Param id="output_level" value="XMC_GPIO_OUTPUT_LEVEL_HIGH"/>
                         <Param id="output_mode" value="XMC_GPIO_MODE_OUTPUT_PUSH_PULL"/>
                         <Param id="output_strength" value="XMC_GPIO_OUTPUT_STRENGTH_NONE"/>
                     </Parameters>
@@ -221,7 +221,7 @@
                 <Personality template="xmc_uart" version="1.0">
                     <Block location="usic[0].ch[0]" locked="true">
                         <Aliases>
-                            <Alias value="UART1"/>
+                            <Alias value="UART_Bus"/>
                         </Aliases>
                     </Block>
                     <Parameters>
@@ -251,9 +251,9 @@
                         <Param id="ReceiverInterruptSRSel" value="1"/>
                         <Param id="ReceiverNoiseDetectionEvent" value="false"/>
                         <Param id="ReceiverStartInterrupt" value="false"/>
-                        <Param id="RxFIFOLimit" value="31"/>
-                        <Param id="RxFIFOPointer" value="32"/>
-                        <Param id="RxFIFOSize" value="XMC_USIC_CH_FIFO_SIZE_32WORDS"/>
+                        <Param id="RxFIFOLimit" value="15"/>
+                        <Param id="RxFIFOPointer" value="0"/>
+                        <Param id="RxFIFOSize" value="XMC_USIC_CH_FIFO_SIZE_16WORDS"/>
                         <Param id="SamplePoint" value="8"/>
                         <Param id="ShowSystemRelatedConnections" value="false"/>
                         <Param id="StandardReceiveBufferEvent" value="true"/>
@@ -271,9 +271,9 @@
                         <Param id="TransmitShiftInterrupt" value="false"/>
                         <Param id="TransmitShiftInterruptSRSel" value="0"/>
                         <Param id="TransmitterFrameFinishedEvent" value="false"/>
-                        <Param id="TxFIFOLimit" value="1"/>
-                        <Param id="TxFIFOPointer" value="0"/>
-                        <Param id="TxFIFOSize" value="XMC_USIC_CH_FIFO_SIZE_32WORDS"/>
+                        <Param id="TxFIFOLimit" value="15"/>
+                        <Param id="TxFIFOPointer" value="16"/>
+                        <Param id="TxFIFOSize" value="XMC_USIC_CH_FIFO_SIZE_16WORDS"/>
                         <Param id="configuration" value="auto"/>
                         <Param id="inFlash" value="true"/>
                     </Parameters>
@@ -281,13 +281,13 @@
                 <Personality template="xmc_uart" version="1.0">
                     <Block location="usic[0].ch[1]" locked="true">
                         <Aliases>
-                            <Alias value="UART2"/>
+                            <Alias value="UART_Prog"/>
                         </Aliases>
                     </Block>
                     <Parameters>
                         <Param id="AlternativeInterrupt" value="false"/>
                         <Param id="AlternativeInterruptSRSel" value="0"/>
-                        <Param id="BaudRate" value="115200"/>
+                        <Param id="BaudRate" value="9600"/>
                         <Param id="BaudRateGeneratorClockSrc" value="XMC_USIC_CH_BRG_CLOCK_SOURCE_DIVIDER"/>
                         <Param id="ClockDividerMode" value="XMC_USIC_CH_BRG_CLOCK_DIVIDER_MODE_FRACTIONAL"/>
                         <Param id="CollisionDetectionEvent" value="false"/>
@@ -311,8 +311,9 @@
                         <Param id="ReceiverInterruptSRSel" value="0"/>
                         <Param id="ReceiverNoiseDetectionEvent" value="false"/>
                         <Param id="ReceiverStartInterrupt" value="false"/>
-                        <Param id="RxFIFOPointer" value="0"/>
-                        <Param id="RxFIFOSize" value="XMC_USIC_CH_FIFO_DISABLED"/>
+                        <Param id="RxFIFOLimit" value="15"/>
+                        <Param id="RxFIFOPointer" value="32"/>
+                        <Param id="RxFIFOSize" value="XMC_USIC_CH_FIFO_SIZE_16WORDS"/>
                         <Param id="SamplePoint" value="8"/>
                         <Param id="ShowSystemRelatedConnections" value="false"/>
                         <Param id="StandardReceiveBufferEvent" value="false"/>
@@ -330,8 +331,9 @@
                         <Param id="TransmitShiftInterrupt" value="false"/>
                         <Param id="TransmitShiftInterruptSRSel" value="0"/>
                         <Param id="TransmitterFrameFinishedEvent" value="false"/>
-                        <Param id="TxFIFOPointer" value="0"/>
-                        <Param id="TxFIFOSize" value="XMC_USIC_CH_FIFO_DISABLED"/>
+                        <Param id="TxFIFOLimit" value="15"/>
+                        <Param id="TxFIFOPointer" value="48"/>
+                        <Param id="TxFIFOSize" value="XMC_USIC_CH_FIFO_SIZE_16WORDS"/>
                         <Param id="configuration" value="auto"/>
                         <Param id="inFlash" value="true"/>
                     </Parameters>
