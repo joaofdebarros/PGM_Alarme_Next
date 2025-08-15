@@ -19,6 +19,14 @@
 #define DATA 4
 #define CHECKSUM 5
 
+#define PGM_PACKET_HEADER_LEN 1
+#define PGM_PACKET_LENGTH_LEN 1
+#define PGM_PACKET_ID_LEN 1
+#define PGM_PACKET_ADDRESS_LEN 1
+#define PGM_PACKET_FUNCTION_LEN 1
+#define PGM_PACKET_TAIL_LEN 1
+#define PGM_PACKET_CHECKSUM_LEN 1
+
 #define TAMANHO_BUFFER 8
 #define TAMANHO_BUFFER_ACK 12
 
@@ -28,9 +36,9 @@ uint8_t incremento = 0;
 uint8_t buffer_size = 8;
 uint8_t package_size = 0;
 // Buffer de envio e recepção de dados
-volatile uint8_t Rx_buffer[TAMANHO_BUFFER_ACK];
-volatile uint8_t Rx_buffer_index = 0;
-volatile uint8_t Buffer_TX[TAMANHO_BUFFER_ACK] = {0};
+uint8_t Rx_buffer[TAMANHO_BUFFER_ACK];
+uint8_t Rx_buffer_index = 0;
+uint8_t Buffer_TX[TAMANHO_BUFFER_ACK] = {0};
 
 typedef enum {
   PGM_ID = 0x01,
@@ -46,6 +54,34 @@ typedef enum {
   PGM_RETRY_CRC = 0x04,
 } PGM_FUNCTION_t;
 
+typedef enum{
+    PGM_PACKET_OK,
+    PGM_PACKET_FAIL_HEADER,
+    PGM_PACKET_FAIL_TAIL,
+    PGM_PACKET_FAIL_LENGHT,
+    PGM_PACKET_FAIL_CHECKSUM,
+    PGM_PACKET_FAIL_UNKNOWN = 0xFF
+}pgm_packet_error_e;
+
+typedef struct {
+    uint8_t len;
+    uint8_t id;
+    uint8_t address;
+    uint8_t function;
+    uint8_t data[5];
+    uint8_t checksum;
+    uint8_t tail;
+}pgm_alarm_packet_t;
+
+typedef struct {
+    uint8_t len;
+    uint8_t id;
+    uint8_t function;
+    uint8_t data[5];
+    uint8_t checksum;
+    uint8_t tail;
+}pgm_gate_packet_t;
+
 uint32_t UniqueChipID[4] = {0, 0, 0, 0};
 uint8_t crc_address = 0;
 
@@ -54,6 +90,8 @@ volatile bool pacote_completo = false;
 volatile bool recebendo = false;
 volatile bool pacote_obsoleto = false;
 volatile bool cadastrado = false;
+bool new_alarm_packet = false;
+bool new_gate_packet = false;
 
 // Variáveis do pacote
 #define start_byte 0x7E
@@ -66,7 +104,6 @@ uint8_t checksum = 0;
 
 uint8_t checksum_validate = 0;
 volatile bool checksum_ok = false;
-
 
 // Máquina de estados
 uint8_t estado = 0;
@@ -96,9 +133,7 @@ typedef union {
     bool bitflag6 : 1;
     bool bitflag7 : 1;
   } Bits;
-} FLAG0;
-
-FLAG0 status_rele, ligar_rele;
+} FLAG_Bits;
 
 typedef struct {
   XMC_GPIO_PORT_t *port;
@@ -114,6 +149,134 @@ XMC_GPIO_PORT_t *const rele_ports[5] = {RL1_PORT, RL2_PORT, RL3_PORT, RL4_PORT,
                                         RL5_PORT};
 
 const uint8_t rele_pins[5] = {RL1_PIN, RL2_PIN, RL3_PIN, RL4_PIN, RL5_PIN};
+
+typedef struct{
+	pgm_packet_error_e pgm_error;
+	pgm_alarm_packet_t alarm_packet;
+	pgm_gate_packet_t gate_packet;
+	FLAG_Bits status_rele, ligar_rele;
+} pgm_t;
+
+pgm_t pgm;
+
+pgm_packet_error_e pgm_alarm_packet_demount(uint8_t *datain, uint16_t len,
+                                      pgm_alarm_packet_t *packet) {
+  uint8_t checksum_validate;
+  uint16_t i, size, lHold;
+
+  if (datain == NULL || packet == NULL) {
+    return PGM_PACKET_FAIL_UNKNOWN;
+  }
+
+  checksum_validate = 0x7E;
+  // Transport all bytes to the struct
+  size = 0;
+  memset(packet, 0, sizeof(pgm_alarm_packet_t));
+
+  for (i = 0; i < PGM_PACKET_LENGTH_LEN; i++) {
+    packet->len += (datain[size++]);
+  }
+  lHold = (len - 7);
+  checksum_validate ^= packet->len;
+
+  for (i = 0; i < PGM_PACKET_ID_LEN; i++) {
+    packet->id += (datain[size++]);
+  }
+  checksum_validate ^= packet->id;
+
+  for (i = 0; i < PGM_PACKET_ADDRESS_LEN; i++) {
+    packet->address = datain[size++];
+  }
+  checksum_validate ^= packet->address;
+
+  for (i = 0; i < PGM_PACKET_FUNCTION_LEN; i++) {
+    packet->function = datain[size++];
+  }
+  checksum_validate ^= packet->function;
+
+  memcpy(packet->data, &datain[size], lHold);
+  size += lHold;
+
+  for (i = 0; i < lHold; i++) {
+    checksum_validate ^= packet->data[i];
+  }
+
+  for (i = 0; i < PGM_PACKET_CHECKSUM_LEN; i++) {
+    packet->checksum += (datain[size++]);
+  }
+  checksum_validate = ~checksum_validate;
+
+  for (i = 0; i < PGM_PACKET_TAIL_LEN; i++) {
+    packet->tail += (datain[size++]);
+  }
+
+  if (packet->tail != 0x81) {
+    return PGM_PACKET_FAIL_TAIL;
+  }
+
+  if (checksum_validate != packet->checksum) {
+    return PGM_PACKET_FAIL_CHECKSUM;
+  }
+
+  return PGM_PACKET_OK;
+}
+
+pgm_packet_error_e pgm_gate_packet_demount(uint8_t *datain, uint16_t len,
+                                      pgm_gate_packet_t *packet) {
+  uint8_t checksum_validate;
+  uint16_t i, size, lHold;
+
+  if (datain == NULL || packet == NULL) {
+    return PGM_PACKET_FAIL_UNKNOWN;
+  }
+
+  checksum_validate = 0x7E;
+  // Transport all bytes to the struct
+  size = 0;
+  memset(packet, 0, sizeof(pgm_gate_packet_t));
+
+  for (i = 0; i < PGM_PACKET_LENGTH_LEN; i++) {
+    packet->len += (datain[size++]);
+  }
+  lHold = (len - 6);
+  checksum_validate ^= packet->len;
+
+  for (i = 0; i < PGM_PACKET_ID_LEN; i++) {
+    packet->id += (datain[size++]);
+  }
+  checksum_validate ^= packet->id;
+
+  for (i = 0; i < PGM_PACKET_FUNCTION_LEN; i++) {
+    packet->function = datain[size++];
+  }
+  checksum_validate ^= packet->function;
+
+  memcpy(packet->data, &datain[size], lHold);
+  size += lHold;
+
+  for (i = 0; i < lHold; i++) {
+    checksum_validate ^= packet->data[i];
+  }
+
+  for (i = 0; i < PGM_PACKET_CHECKSUM_LEN; i++) {
+    packet->checksum += (datain[size++]);
+  }
+  checksum_validate = ~checksum_validate;
+
+  for (i = 0; i < PGM_PACKET_TAIL_LEN; i++) {
+    packet->tail += (datain[size++]);
+  }
+
+  if (packet->tail != 0x81) {
+    return PGM_PACKET_FAIL_TAIL;
+  }
+
+  if (checksum_validate != packet->checksum) {
+    return PGM_PACKET_FAIL_CHECKSUM;
+  }
+
+  return PGM_PACKET_OK;
+}
 
 void reset_uart() {
   XMC_UART_CH_InitEx(UART_Bus_HW, &UART_Bus_config, false);
@@ -157,16 +320,17 @@ void switch_to_uart() {
   reset_uart();
 }
 
-uint8_t calculate_checksum(uint8_t *buffer, uint8_t payload_size, bool automatizador) {
+uint8_t calculate_checksum(uint8_t *buffer, uint8_t payload_size,
+                           bool automatizador) {
   uint8_t sum = 0;
   uint8_t header_size = 0;
-  
-  if(automatizador){
-	header_size = 4;
-  }else{
-	header_size = 5;
+
+  if (automatizador) {
+    header_size = 4;
+  } else {
+    header_size = 5;
   }
-	
+
   for (uint8_t i = 0; i < (header_size + payload_size); i++) {
     sum ^= buffer[i];
   }
@@ -260,15 +424,15 @@ uint16_t gerar_intervalo(uint8_t UID0, uint8_t UID1, uint8_t UID2, uint8_t UID3,
 }
 
 uint8_t montar_pacote(uint8_t *tx, uint8_t size, uint8_t id, uint8_t adrs,
-                         uint8_t fnct, uint8_t *data, uint8_t payload_size, bool automatizador) {
+                      uint8_t fnct, uint8_t *data, uint8_t payload_size,
+                      bool automatizador) {
   uint8_t total_size = 0;
-  
-  if(automatizador){
-	total_size = payload_size + 6;
-  }else{
-	total_size = payload_size + 7;
+
+  if (automatizador) {
+    total_size = payload_size + 6;
+  } else {
+    total_size = payload_size + 7;
   }
-  
 
   tx[0] = start_byte;
   tx[1] = size;
@@ -280,15 +444,14 @@ uint8_t montar_pacote(uint8_t *tx, uint8_t size, uint8_t id, uint8_t adrs,
     tx[5 + i] = data[i];
   }
 
-  tx[5 + payload_size] = calculate_checksum(tx, payload_size,automatizador);
+  tx[5 + payload_size] = calculate_checksum(tx, payload_size, automatizador);
   tx[6 + payload_size] = stop_byte;
 
   return total_size;
 }
 
-// Rotina para receber dados
-void USIC0_1_IRQHandler(void) {
-  if (pacote_completo == false) {
+void receive_alarm_packet(){
+	if (pacote_completo == false && new_alarm_packet) {
     while (!XMC_USIC_CH_RXFIFO_IsEmpty(UART_Bus_HW)) {
 
       uint8_t rx = XMC_UART_CH_GetReceivedData(UART_Bus_HW);
@@ -302,37 +465,15 @@ void USIC0_1_IRQHandler(void) {
 
         if (rx == stop_byte && (Rx_buffer_index == Rx_buffer[0] - 2)) {
           recebendo = false;
-
-          switch (Rx_buffer[0]) {
-          case 8: {
-            checksum_validate = ~(0x7E ^ Rx_buffer[0] ^ Rx_buffer[1] ^
-                                  Rx_buffer[2] ^ Rx_buffer[3] ^ Rx_buffer[4]);
-            if (Rx_buffer[CHECKSUM] == checksum_validate) {
-              checksum_ok = true;
-            } else {
-              checksum_ok = false;
-            }
-          } break;
-          case 12: {
-            checksum_validate =
-                ~(0x7E ^ Rx_buffer[0] ^ Rx_buffer[1] ^ Rx_buffer[2] ^
-                  Rx_buffer[3] ^ Rx_buffer[4] ^ Rx_buffer[5] ^ Rx_buffer[6] ^
-                  Rx_buffer[7] ^ Rx_buffer[8]);
-            if (Rx_buffer[9] == checksum_validate) {
-              checksum_ok = true;
-            } else {
-              checksum_ok = false;
-            }
-          } break;
-          }
-
-          if ((Rx_buffer[IDT] == PGM_ID ||
-               Rx_buffer[IDT] == PGM_BROADCAST_ID) &&
-              checksum_ok) {
-            pacote_completo = true;
-          } else {
-            Rx_buffer_index = 0;
-          }
+          Rx_buffer[Rx_buffer_index] = rx;
+		  pgm.pgm_error = pgm_alarm_packet_demount(Rx_buffer, Rx_buffer[0], &pgm.alarm_packet);
+		
+          if(pgm.pgm_error == PGM_PACKET_OK && (pgm.alarm_packet.id == PGM_ID || pgm.alarm_packet.id == PGM_BROADCAST_ID)){
+			pacote_completo = true;
+		  }else{
+			pacote_completo = false;
+			Rx_buffer_index = 0;
+		  }
 
           break;
         } else {
@@ -353,6 +494,52 @@ void USIC0_1_IRQHandler(void) {
     }
   }
 }
+
+void receive_gate_packet(){
+	if (pacote_completo == false && new_gate_packet) {
+    while (!XMC_USIC_CH_RXFIFO_IsEmpty(UART_Bus_HW)) {
+
+      uint8_t rx = XMC_UART_CH_GetReceivedData(UART_Bus_HW);
+      if (!recebendo) {
+        if (rx == start_byte) {
+          recebendo = true;
+          Rx_buffer_index = 0;
+        }
+
+      } else {
+
+        if (rx == stop_byte && (Rx_buffer_index == Rx_buffer[0] - 2)) {
+          recebendo = false;
+          Rx_buffer[Rx_buffer_index] = rx;
+		  pgm.pgm_error = pgm_alarm_packet_demount(Rx_buffer, Rx_buffer[0], &pgm.alarm_packet);
+		
+          if(pgm.pgm_error == PGM_PACKET_OK && (pgm.alarm_packet.id == PGM_ID || pgm.alarm_packet.id == PGM_BROADCAST_ID)){
+			pacote_completo = true;
+		  }else{
+			pacote_completo = false;
+			Rx_buffer_index = 0;
+		  }
+
+          break;
+        } else {
+          if (Rx_buffer_index < 12) {
+            Rx_buffer[Rx_buffer_index++] = rx;
+          } else {
+            recebendo = false;
+            Rx_buffer_index = 0;
+          }
+        }
+      }
+    }
+
+    if ((TAMANHO_BUFFER - Rx_buffer_index) < UART_Bus_RXFIFO_LIMIT) {
+      XMC_USIC_CH_RXFIFO_SetSizeTriggerLimit(
+          UART_Bus_HW, XMC_USIC_CH_FIFO_SIZE_8WORDS,
+          (TAMANHO_BUFFER - Rx_buffer_index) - 1);
+    }
+  }
+}
+
 
 void blink_led_ST(uint8_t n) {
 
@@ -404,6 +591,15 @@ void SysTick_Handler(void) {
 
   systick++;
 }
+
+// Rotina para receber dados
+void USIC0_1_IRQHandler(void) {
+  new_alarm_packet = true;
+}
+
+void USIC0_2_IRQHandler(void) {
+  new_gate_packet = true;
+}
 // Máquina de estados
 void Controle() {
 
@@ -437,7 +633,7 @@ void Controle() {
         if (Rx_buffer[IDT] == PGM_ID && Rx_buffer[4] == UID0 &&
             Rx_buffer[5] == UID1 && Rx_buffer[6] == UID2 &&
             Rx_buffer[7] == UID3) {
-          ligar_rele.Byte = 0x00;
+          pgm.ligar_rele.Byte = 0x00;
           numero_modulo = 0;
           cadastrado = false;
           incremento = num_aleatorio;
@@ -445,7 +641,7 @@ void Controle() {
           crc_address = crc8((uint8_t *)UniqueChipID, 16, incremento);
           estado = RL_CONTROL;
         } else if (Rx_buffer[IDT] == PGM_BROADCAST_ID) {
-          ligar_rele.Byte = 0x00;
+          pgm.ligar_rele.Byte = 0x00;
           numero_modulo = 0;
           cadastrado = false;
           incremento = num_aleatorio;
@@ -465,11 +661,11 @@ void Controle() {
         estado = STATUS_RL;
       } else if (Rx_buffer[FUNCTION] == PGM_TOGGLE) {
         if (Rx_buffer[IDT] == PGM_BROADCAST_ID) {
-          ligar_rele.Byte = Rx_buffer[DATA];
+          pgm.ligar_rele.Byte = Rx_buffer[DATA];
           estado = RL_CONTROL;
         } else if (Rx_buffer[IDT] == PGM_ID &&
                    Rx_buffer[UNIQUEID] == crc_address) {
-          ligar_rele.Byte = Rx_buffer[DATA];
+          pgm.ligar_rele.Byte = Rx_buffer[DATA];
           estado = RL_CONTROL;
         } else {
           pacote_obsoleto = true;
@@ -478,13 +674,13 @@ void Controle() {
 
       } else if (Rx_buffer[FUNCTION] == PGM_DELETE) {
         if (Rx_buffer[IDT] == PGM_BROADCAST_ID) {
-          ligar_rele.Byte = 0x00;
+          pgm.ligar_rele.Byte = 0x00;
           cadastrado = false;
           pacote_obsoleto = true;
           estado = RL_CONTROL;
         } else if (Rx_buffer[IDT] == PGM_ID &&
                    Rx_buffer[UNIQUEID] == crc_address) {
-          ligar_rele.Byte = 0x00;
+          pgm.ligar_rele.Byte = 0x00;
           cadastrado = false;
           pacote_obsoleto = true;
           estado = RL_CONTROL;
@@ -504,8 +700,9 @@ void Controle() {
   case GET_UID: {
     // Enviar o UID do dispositivo
     buffer_size = 12;
-    montar_pacote(buffer_size, PGM_ID_RESPONSE, 0x00, PGM_REGISTER,
-                           UID0, UID1, UID2, UID3, crc_address, Buffer_TX);
+    uint8_t data[5] = {UID0, UID1, UID2, UID3, crc_address};
+    montar_pacote(Buffer_TX, buffer_size, PGM_ID_RESPONSE, 0x00, PGM_REGISTER,
+                  data, 5, false);
 
     estado = TRANSMIT;
 
@@ -515,8 +712,8 @@ void Controle() {
     if (Rx_buffer[UNIQUEID] == crc_address) {
       // Enviar o status de cada rele
       buffer_size = 8;
-      montar_pacote(Buffer_TX,buffer_size, PGM_ID_RESPONSE, crc_address, PGM_STATUS,
-                    &status_rele.Byte, 1, false);
+      montar_pacote(Buffer_TX, buffer_size, PGM_ID_RESPONSE, crc_address,
+                    PGM_STATUS, &pgm.status_rele.Byte, 1, false);
 
       delay_aleatorio = gerar_intervalo(UID0, UID1, UID2, UID3, systick);
 
@@ -533,26 +730,26 @@ void Controle() {
       uint8_t mask =
           (1 << i); // cria uma máscara para cada bit (rele_1 até rele_5)
 
-      if (ligar_rele.Byte & mask) {
+      if (pgm.ligar_rele.Byte & mask) {
         XMC_GPIO_SetOutputHigh(rele_ports[i], rele_pins[i]);
-        status_rele.Byte |= mask;
+        pgm.status_rele.Byte |= mask;
       } else {
         XMC_GPIO_SetOutputLow(rele_ports[i], rele_pins[i]);
-        status_rele.Byte &= ~mask;
+        pgm.status_rele.Byte &= ~mask;
       }
     }
 
     buffer_size = 8;
-    montar_pacote(Buffer_TX, buffer_size, PGM_ID_RESPONSE, crc_address, PGM_TOGGLE, &ACK, 1,
-                  false);
+    montar_pacote(Buffer_TX, buffer_size, PGM_ID_RESPONSE, crc_address,
+                  PGM_TOGGLE, &ACK, 1, false);
     estado = TRANSMIT;
 
   } break;
 
   case DELETE: {
     buffer_size = 8;
-    montar_pacote(Buffer_TX, buffer_size, PGM_ID_RESPONSE, crc_address, PGM_DELETE, &ACK, 1,
-                  false);
+    montar_pacote(Buffer_TX, buffer_size, PGM_ID_RESPONSE, crc_address,
+                  PGM_DELETE, &ACK, 1, false);
     estado = TRANSMIT;
   } break;
 
@@ -624,6 +821,8 @@ int main(void) {
 
   NVIC_EnableIRQ(USIC0_1_IRQn);
   NVIC_SetPriority(USIC0_1_IRQn, 2);
+  NVIC_EnableIRQ(USIC0_2_IRQn);
+  NVIC_SetPriority(USIC0_2_IRQn, 2);
 
   XMC_UART_CH_Start(UART_Bus_HW);
 
@@ -653,5 +852,7 @@ int main(void) {
 
   while (1) {
     Controle();
+    receive_alarm_packet();
+    receive_gate_packet();
   }
 }

@@ -307,8 +307,8 @@
                         <Param id="ReceiveBufferErrorEvent" value="false"/>
                         <Param id="ReceiveBufferErrorEventSRSel" value="0"/>
                         <Param id="ReceiverFrameFinishedEvent" value="false"/>
-                        <Param id="ReceiverInterrupt" value="false"/>
-                        <Param id="ReceiverInterruptSRSel" value="0"/>
+                        <Param id="ReceiverInterrupt" value="true"/>
+                        <Param id="ReceiverInterruptSRSel" value="2"/>
                         <Param id="ReceiverNoiseDetectionEvent" value="false"/>
                         <Param id="ReceiverStartInterrupt" value="false"/>
                         <Param id="RxFIFOLimit" value="15"/>
@@ -316,10 +316,10 @@
                         <Param id="RxFIFOSize" value="XMC_USIC_CH_FIFO_SIZE_16WORDS"/>
                         <Param id="SamplePoint" value="8"/>
                         <Param id="ShowSystemRelatedConnections" value="false"/>
-                        <Param id="StandardReceiveBufferEvent" value="false"/>
-                        <Param id="StandardReceiveBufferEventSRSel" value="0"/>
-                        <Param id="StandardTransmitBufferEvent" value="false"/>
-                        <Param id="StandardTransmitBufferEventSRSel" value="0"/>
+                        <Param id="StandardReceiveBufferEvent" value="true"/>
+                        <Param id="StandardReceiveBufferEventSRSel" value="2"/>
+                        <Param id="StandardTransmitBufferEvent" value="true"/>
+                        <Param id="StandardTransmitBufferEventSRSel" value="3"/>
                         <Param id="StartAfterInit" value="true"/>
                         <Param id="StopBits" value="1"/>
                         <Param id="SynchronizationBreakDetectionEvent" value="false"/>
