@@ -54,33 +54,33 @@ typedef enum {
   PGM_RETRY_CRC = 0x04,
 } PGM_FUNCTION_t;
 
-typedef enum{
-    PGM_PACKET_OK,
-    PGM_PACKET_FAIL_HEADER,
-    PGM_PACKET_FAIL_TAIL,
-    PGM_PACKET_FAIL_LENGHT,
-    PGM_PACKET_FAIL_CHECKSUM,
-    PGM_PACKET_FAIL_UNKNOWN = 0xFF
-}pgm_packet_error_e;
+typedef enum {
+  PGM_PACKET_OK,
+  PGM_PACKET_FAIL_HEADER,
+  PGM_PACKET_FAIL_TAIL,
+  PGM_PACKET_FAIL_LENGHT,
+  PGM_PACKET_FAIL_CHECKSUM,
+  PGM_PACKET_FAIL_UNKNOWN = 0xFF
+} pgm_packet_error_e;
 
 typedef struct {
-    uint8_t len;
-    uint8_t id;
-    uint8_t address;
-    uint8_t function;
-    uint8_t data[5];
-    uint8_t checksum;
-    uint8_t tail;
-}pgm_alarm_packet_t;
+  uint8_t len;
+  uint8_t id;
+  uint8_t address;
+  uint8_t function;
+  uint8_t data[5];
+  uint8_t checksum;
+  uint8_t tail;
+} pgm_alarm_packet_t;
 
 typedef struct {
-    uint8_t len;
-    uint8_t id;
-    uint8_t function;
-    uint8_t data[5];
-    uint8_t checksum;
-    uint8_t tail;
-}pgm_gate_packet_t;
+  uint8_t len;
+  uint8_t id;
+  uint8_t function;
+  uint8_t data[5];
+  uint8_t checksum;
+  uint8_t tail;
+} pgm_gate_packet_t;
 
 uint32_t UniqueChipID[4] = {0, 0, 0, 0};
 uint8_t crc_address = 0;
@@ -150,17 +150,17 @@ XMC_GPIO_PORT_t *const rele_ports[5] = {RL1_PORT, RL2_PORT, RL3_PORT, RL4_PORT,
 
 const uint8_t rele_pins[5] = {RL1_PIN, RL2_PIN, RL3_PIN, RL4_PIN, RL5_PIN};
 
-typedef struct{
-	pgm_packet_error_e pgm_error;
-	pgm_alarm_packet_t alarm_packet;
-	pgm_gate_packet_t gate_packet;
-	FLAG_Bits status_rele, ligar_rele;
+typedef struct {
+  pgm_packet_error_e pgm_error;
+  pgm_alarm_packet_t alarm_packet;
+  pgm_gate_packet_t gate_packet;
+  FLAG_Bits status_rele, ligar_rele;
 } pgm_t;
 
 pgm_t pgm;
 
 pgm_packet_error_e pgm_alarm_packet_demount(uint8_t *datain, uint16_t len,
-                                      pgm_alarm_packet_t *packet) {
+                                            pgm_alarm_packet_t *packet) {
   uint8_t checksum_validate;
   uint16_t i, size, lHold;
 
@@ -222,7 +222,7 @@ pgm_packet_error_e pgm_alarm_packet_demount(uint8_t *datain, uint16_t len,
 }
 
 pgm_packet_error_e pgm_gate_packet_demount(uint8_t *datain, uint16_t len,
-                                      pgm_gate_packet_t *packet) {
+                                           pgm_gate_packet_t *packet) {
   uint8_t checksum_validate;
   uint16_t i, size, lHold;
 
@@ -450,8 +450,8 @@ uint8_t montar_pacote(uint8_t *tx, uint8_t size, uint8_t id, uint8_t adrs,
   return total_size;
 }
 
-void receive_alarm_packet(){
-	if (pacote_completo == false && new_alarm_packet) {
+void receive_alarm_packet() {
+  if (pacote_completo == false && new_alarm_packet) {
     while (!XMC_USIC_CH_RXFIFO_IsEmpty(UART_Bus_HW)) {
 
       uint8_t rx = XMC_UART_CH_GetReceivedData(UART_Bus_HW);
@@ -466,14 +466,17 @@ void receive_alarm_packet(){
         if (rx == stop_byte && (Rx_buffer_index == Rx_buffer[0] - 2)) {
           recebendo = false;
           Rx_buffer[Rx_buffer_index] = rx;
-		  pgm.pgm_error = pgm_alarm_packet_demount(Rx_buffer, Rx_buffer[0], &pgm.alarm_packet);
-		
-          if(pgm.pgm_error == PGM_PACKET_OK && (pgm.alarm_packet.id == PGM_ID || pgm.alarm_packet.id == PGM_BROADCAST_ID)){
-			pacote_completo = true;
-		  }else{
-			pacote_completo = false;
-			Rx_buffer_index = 0;
-		  }
+          pgm.pgm_error = pgm_alarm_packet_demount(Rx_buffer, Rx_buffer[0],
+                                                   &pgm.alarm_packet);
+
+          if (pgm.pgm_error == PGM_PACKET_OK &&
+              (pgm.alarm_packet.id == PGM_ID ||
+               pgm.alarm_packet.id == PGM_BROADCAST_ID)) {
+            pacote_completo = true;
+          } else {
+            pacote_completo = false;
+            Rx_buffer_index = 0;
+          }
 
           break;
         } else {
@@ -495,11 +498,11 @@ void receive_alarm_packet(){
   }
 }
 
-void receive_gate_packet(){
-	if (pacote_completo == false && new_gate_packet) {
-    while (!XMC_USIC_CH_RXFIFO_IsEmpty(UART_Bus_HW)) {
+void receive_gate_packet() {
+  if (pacote_completo == false && new_gate_packet) {
+    while (!XMC_USIC_CH_RXFIFO_IsEmpty(UART_Prog_HW)) {
 
-      uint8_t rx = XMC_UART_CH_GetReceivedData(UART_Bus_HW);
+      uint8_t rx = XMC_UART_CH_GetReceivedData(UART_Prog_HW);
       if (!recebendo) {
         if (rx == start_byte) {
           recebendo = true;
@@ -511,14 +514,17 @@ void receive_gate_packet(){
         if (rx == stop_byte && (Rx_buffer_index == Rx_buffer[0] - 2)) {
           recebendo = false;
           Rx_buffer[Rx_buffer_index] = rx;
-		  pgm.pgm_error = pgm_alarm_packet_demount(Rx_buffer, Rx_buffer[0], &pgm.alarm_packet);
-		
-          if(pgm.pgm_error == PGM_PACKET_OK && (pgm.alarm_packet.id == PGM_ID || pgm.alarm_packet.id == PGM_BROADCAST_ID)){
-			pacote_completo = true;
-		  }else{
-			pacote_completo = false;
-			Rx_buffer_index = 0;
-		  }
+          pgm.pgm_error = pgm_alarm_packet_demount(Rx_buffer, Rx_buffer[0],
+                                                   &pgm.alarm_packet);
+
+          if (pgm.pgm_error == PGM_PACKET_OK &&
+              (pgm.alarm_packet.id == PGM_ID ||
+               pgm.alarm_packet.id == PGM_BROADCAST_ID)) {
+            pacote_completo = true;
+          } else {
+            pacote_completo = false;
+            Rx_buffer_index = 0;
+          }
 
           break;
         } else {
@@ -539,7 +545,6 @@ void receive_gate_packet(){
     }
   }
 }
-
 
 void blink_led_ST(uint8_t n) {
 
@@ -593,13 +598,11 @@ void SysTick_Handler(void) {
 }
 
 // Rotina para receber dados
-void USIC0_1_IRQHandler(void) {
-  new_alarm_packet = true;
-}
+void USIC0_1_IRQHandler(void) { 
+	new_alarm_packet = true; }
 
-void USIC0_2_IRQHandler(void) {
-  new_gate_packet = true;
-}
+void USIC0_2_IRQHandler(void) { 
+	new_gate_packet = true; }
 // Máquina de estados
 void Controle() {
 
@@ -829,6 +832,8 @@ int main(void) {
   // Inverte a saída de dados da UART (nível lógico de TX)
   //  UART_Bus_HW->SCTR = (UART_Bus_HW->SCTR & ~(0X3 << 6)) | (0X1 << 6);
   XMC_UART_CH_EnableInputInversion(UART_Bus_HW,
+                                   (XMC_UART_CH_INPUT_t)XMC_USIC_CH_INPUT_DX0);
+  XMC_UART_CH_EnableInputInversion(UART_Prog_HW,
                                    (XMC_UART_CH_INPUT_t)XMC_USIC_CH_INPUT_DX0);
   switch_to_gpio();
 
