@@ -86,7 +86,8 @@ uint32_t UniqueChipID[4] = {0, 0, 0, 0};
 uint8_t crc_address = 0;
 
 // Flags de envio e recepção de dados
-volatile bool pacote_completo = false;
+volatile bool alarm_packet_completed = false;
+volatile bool gate_packet_completed = false;
 volatile bool recebendo = false;
 volatile bool pacote_obsoleto = false;
 volatile bool cadastrado = false;
@@ -105,8 +106,9 @@ uint8_t checksum = 0;
 uint8_t checksum_validate = 0;
 volatile bool checksum_ok = false;
 
-// Máquina de estados
-uint8_t estado = 0;
+// Máquina de estado_alarms
+uint8_t estado_alarm = 0;
+uint8_t estado_gate = 0;
 
 // Variáveis de tempo/delays
 uint8_t num_aleatorio = 200;
@@ -430,28 +432,40 @@ uint8_t montar_pacote(uint8_t *tx, uint8_t size, uint8_t id, uint8_t adrs,
 
   if (automatizador) {
     total_size = payload_size + 6;
+
+    tx[0] = start_byte;
+    tx[1] = size;
+    tx[2] = id;
+    tx[3] = fnct;
+
+    for (int i = 0; i < payload_size; i++) {
+      tx[4 + i] = data[i];
+    }
+
+    tx[4 + payload_size] = calculate_checksum(tx, payload_size, automatizador);
+    tx[5 + payload_size] = stop_byte;
   } else {
     total_size = payload_size + 7;
+
+    tx[0] = start_byte;
+    tx[1] = size;
+    tx[2] = id;
+    tx[3] = adrs;
+    tx[4] = fnct;
+
+    for (int i = 0; i < payload_size; i++) {
+      tx[5 + i] = data[i];
+    }
+
+    tx[5 + payload_size] = calculate_checksum(tx, payload_size, automatizador);
+    tx[6 + payload_size] = stop_byte;
   }
-
-  tx[0] = start_byte;
-  tx[1] = size;
-  tx[2] = id;
-  tx[3] = adrs;
-  tx[4] = fnct;
-
-  for (int i = 0; i < payload_size; i++) {
-    tx[5 + i] = data[i];
-  }
-
-  tx[5 + payload_size] = calculate_checksum(tx, payload_size, automatizador);
-  tx[6 + payload_size] = stop_byte;
 
   return total_size;
 }
 
 void receive_alarm_packet() {
-  if (pacote_completo == false && new_alarm_packet) {
+  if (alarm_packet_completed == false && new_alarm_packet) {
     while (!XMC_USIC_CH_RXFIFO_IsEmpty(UART_Bus_HW)) {
 
       uint8_t rx = XMC_UART_CH_GetReceivedData(UART_Bus_HW);
@@ -472,9 +486,9 @@ void receive_alarm_packet() {
           if (pgm.pgm_error == PGM_PACKET_OK &&
               (pgm.alarm_packet.id == PGM_ID ||
                pgm.alarm_packet.id == PGM_BROADCAST_ID)) {
-            pacote_completo = true;
+            alarm_packet_completed = true;
           } else {
-            pacote_completo = false;
+            alarm_packet_completed = false;
             Rx_buffer_index = 0;
           }
 
@@ -499,7 +513,7 @@ void receive_alarm_packet() {
 }
 
 void receive_gate_packet() {
-  if (pacote_completo == false && new_gate_packet) {
+  if (gate_packet_completed == false && new_gate_packet) {
     while (!XMC_USIC_CH_RXFIFO_IsEmpty(UART_Prog_HW)) {
 
       uint8_t rx = XMC_UART_CH_GetReceivedData(UART_Prog_HW);
@@ -520,9 +534,9 @@ void receive_gate_packet() {
           if (pgm.pgm_error == PGM_PACKET_OK &&
               (pgm.alarm_packet.id == PGM_ID ||
                pgm.alarm_packet.id == PGM_BROADCAST_ID)) {
-            pacote_completo = true;
+            gate_packet_completed = true;
           } else {
-            pacote_completo = false;
+            gate_packet_completed = false;
             Rx_buffer_index = 0;
           }
 
@@ -598,13 +612,11 @@ void SysTick_Handler(void) {
 }
 
 // Rotina para receber dados
-void USIC0_1_IRQHandler(void) { 
-	new_alarm_packet = true; }
+void USIC0_1_IRQHandler(void) { new_alarm_packet = true; }
 
-void USIC0_2_IRQHandler(void) { 
-	new_gate_packet = true; }
-// Máquina de estados
-void Controle() {
+void USIC0_2_IRQHandler(void) { new_gate_packet = true; }
+// Máquina de estado_alarms
+void Control_alarm() {
 
 #define RECEIVE 0
 #define GET_UID 1
@@ -615,11 +627,11 @@ void Controle() {
 #define DELAY_ENVIO 6
 #define LIMPAR 7
 
-  switch (estado) {
+  switch (estado_alarm) {
   case RECEIVE: {
 
     XMC_GPIO_SetOutputHigh(Bus_Controle_PORT, Bus_Controle_PIN);
-    if (pacote_completo) {
+    if (alarm_packet_completed) {
 
       if (Rx_buffer[FUNCTION] == PGM_REGISTER && !cadastrado) {
 
@@ -629,7 +641,7 @@ void Controle() {
           cadastrado = true;
 
         } else {
-          estado = GET_UID;
+          estado_alarm = GET_UID;
         }
 
       } else if (Rx_buffer[FUNCTION] == PGM_RETRY_CRC && Rx_buffer[8] == NAK) {
@@ -642,7 +654,7 @@ void Controle() {
           incremento = num_aleatorio;
           update_flash(incremento);
           crc_address = crc8((uint8_t *)UniqueChipID, 16, incremento);
-          estado = RL_CONTROL;
+          estado_alarm = RL_CONTROL;
         } else if (Rx_buffer[IDT] == PGM_BROADCAST_ID) {
           pgm.ligar_rele.Byte = 0x00;
           numero_modulo = 0;
@@ -650,29 +662,29 @@ void Controle() {
           incremento = num_aleatorio;
           update_flash(incremento);
           crc_address = crc8((uint8_t *)UniqueChipID, 16, incremento);
-          estado = RL_CONTROL;
+          estado_alarm = RL_CONTROL;
         } else {
           // Se o ID não for válido, ignora o pacote
           pacote_obsoleto = true;
-          estado = LIMPAR;
+          estado_alarm = LIMPAR;
         }
 
       } else if (Rx_buffer[FUNCTION] == PGM_STATUS &&
                  Rx_buffer[UNIQUEID] == crc_address) {
         cadastrado = true;
         numero_modulo = Rx_buffer[DATA] + 1;
-        estado = STATUS_RL;
+        estado_alarm = STATUS_RL;
       } else if (Rx_buffer[FUNCTION] == PGM_TOGGLE) {
         if (Rx_buffer[IDT] == PGM_BROADCAST_ID) {
           pgm.ligar_rele.Byte = Rx_buffer[DATA];
-          estado = RL_CONTROL;
+          estado_alarm = RL_CONTROL;
         } else if (Rx_buffer[IDT] == PGM_ID &&
                    Rx_buffer[UNIQUEID] == crc_address) {
           pgm.ligar_rele.Byte = Rx_buffer[DATA];
-          estado = RL_CONTROL;
+          estado_alarm = RL_CONTROL;
         } else {
           pacote_obsoleto = true;
-          estado = LIMPAR;
+          estado_alarm = LIMPAR;
         }
 
       } else if (Rx_buffer[FUNCTION] == PGM_DELETE) {
@@ -680,21 +692,21 @@ void Controle() {
           pgm.ligar_rele.Byte = 0x00;
           cadastrado = false;
           pacote_obsoleto = true;
-          estado = RL_CONTROL;
+          estado_alarm = RL_CONTROL;
         } else if (Rx_buffer[IDT] == PGM_ID &&
                    Rx_buffer[UNIQUEID] == crc_address) {
           pgm.ligar_rele.Byte = 0x00;
           cadastrado = false;
           pacote_obsoleto = true;
-          estado = RL_CONTROL;
+          estado_alarm = RL_CONTROL;
         } else {
           pacote_obsoleto = true;
-          estado = LIMPAR;
+          estado_alarm = LIMPAR;
         }
 
       } else {
         pacote_obsoleto = true;
-        estado = LIMPAR;
+        estado_alarm = LIMPAR;
       }
     }
 
@@ -707,7 +719,7 @@ void Controle() {
     montar_pacote(Buffer_TX, buffer_size, PGM_ID_RESPONSE, 0x00, PGM_REGISTER,
                   data, 5, false);
 
-    estado = TRANSMIT;
+    estado_alarm = TRANSMIT;
 
   } break;
 
@@ -720,9 +732,9 @@ void Controle() {
 
       delay_aleatorio = gerar_intervalo(UID0, UID1, UID2, UID3, systick);
 
-      estado = TRANSMIT;
+      estado_alarm = TRANSMIT;
     } else {
-      estado = LIMPAR;
+      estado_alarm = LIMPAR;
     }
 
   } break;
@@ -745,7 +757,7 @@ void Controle() {
     buffer_size = 8;
     montar_pacote(Buffer_TX, buffer_size, PGM_ID_RESPONSE, crc_address,
                   PGM_TOGGLE, &ACK, 1, false);
-    estado = TRANSMIT;
+    estado_alarm = TRANSMIT;
 
   } break;
 
@@ -753,7 +765,7 @@ void Controle() {
     buffer_size = 8;
     montar_pacote(Buffer_TX, buffer_size, PGM_ID_RESPONSE, crc_address,
                   PGM_DELETE, &ACK, 1, false);
-    estado = TRANSMIT;
+    estado_alarm = TRANSMIT;
   } break;
 
   case TRANSMIT: {
@@ -764,7 +776,7 @@ void Controle() {
       delay_tx = systick + 15;
     }
     aguardando_envio = true;
-    estado = DELAY_ENVIO;
+    estado_alarm = DELAY_ENVIO;
 
   } break;
 
@@ -786,7 +798,7 @@ void Controle() {
 
       pacote_obsoleto = true;
       aguardando_envio = false;
-      estado = LIMPAR;
+      estado_alarm = LIMPAR;
     }
 
   } break;
@@ -796,7 +808,7 @@ void Controle() {
       for (uint8_t i = 0; i < sizeof(Buffer_TX); i++) {
         Buffer_TX[i] = 0;
       }
-      pacote_completo = false;
+      alarm_packet_completed = false;
       pacote_obsoleto = false;
     }
 
@@ -804,8 +816,109 @@ void Controle() {
       Rx_buffer[i] = 0;
     }
 
-    pacote_completo = false;
-    estado = RECEIVE;
+    alarm_packet_completed = false;
+    estado_alarm = RECEIVE;
+
+  } break;
+  }
+}
+
+void Control_gate() {
+
+  switch (estado_gate) {
+  case RECEIVE: {
+
+    if (gate_packet_completed) {
+      cadastrado = true;
+      numero_modulo = 1;
+      if (Rx_buffer[2] == PGM_STATUS) {
+        estado_gate = STATUS_RL;
+      } else if (Rx_buffer[2] == PGM_TOGGLE) {
+        pgm.ligar_rele.Byte = Rx_buffer[3];
+        estado_gate = RL_CONTROL;
+      } else {
+        pacote_obsoleto = true;
+        estado_gate = LIMPAR;
+      }
+    }
+
+  } break;
+
+  case STATUS_RL: {
+
+    // Enviar o status de cada rele
+    buffer_size = 7;
+    montar_pacote(Buffer_TX, buffer_size, PGM_ID_RESPONSE, 0x00, PGM_STATUS,
+                  &pgm.status_rele.Byte, 1, true);
+
+    estado_gate = TRANSMIT;
+
+  } break;
+
+  case RL_CONTROL: {
+    // Ligar cada rele conforme solicitado
+    for (int i = 0; i < 5; i++) {
+      uint8_t mask =
+          (1 << i); // cria uma máscara para cada bit (rele_1 até rele_5)
+
+      if (pgm.ligar_rele.Byte & mask) {
+        XMC_GPIO_SetOutputHigh(rele_ports[i], rele_pins[i]);
+        pgm.status_rele.Byte |= mask;
+      } else {
+        XMC_GPIO_SetOutputLow(rele_ports[i], rele_pins[i]);
+        pgm.status_rele.Byte &= ~mask;
+      }
+    }
+
+    buffer_size = 7;
+    montar_pacote(Buffer_TX, buffer_size, PGM_ID_RESPONSE, 0x00, PGM_TOGGLE,
+                  &ACK, 1, true);
+    estado_gate = TRANSMIT;
+
+  } break;
+
+  case TRANSMIT: {
+
+    delay_tx = systick + 15;
+
+    aguardando_envio = true;
+    estado_gate = DELAY_ENVIO;
+
+  } break;
+
+  case DELAY_ENVIO: {
+    if (systick >= delay_tx) {
+      XMC_Delay(1);
+      for (int i = 0; i < buffer_size; i++) {
+        XMC_UART_CH_Transmit(UART_Prog_HW, Buffer_TX[i]);
+      }
+      while (!XMC_USIC_CH_TXFIFO_IsEmpty(UART_Prog_HW))
+        ;
+
+      XMC_Delay(10);
+
+      pacote_obsoleto = true;
+      aguardando_envio = false;
+      estado_gate = LIMPAR;
+    }
+
+  } break;
+
+  case LIMPAR: {
+    if (pacote_obsoleto) {
+      for (uint8_t i = 0; i < sizeof(Buffer_TX); i++) {
+        Buffer_TX[i] = 0;
+      }
+      alarm_packet_completed = false;
+      pacote_obsoleto = false;
+    }
+
+    for (uint8_t i = 0; i < sizeof(Rx_buffer); i++) {
+      Rx_buffer[i] = 0;
+    }
+
+    gate_packet_completed = false;
+    estado_gate = RECEIVE;
 
   } break;
   }
@@ -856,8 +969,9 @@ int main(void) {
   crc_address = crc8((uint8_t *)UniqueChipID, 16, incremento);
 
   while (1) {
-    Controle();
     receive_alarm_packet();
+    Control_alarm();
     receive_gate_packet();
+    Control_gate();
   }
 }
