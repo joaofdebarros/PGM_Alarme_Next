@@ -59,9 +59,11 @@ typedef enum {
 typedef enum {
   PGM_REGISTER = 0x00,
   PGM_TOGGLE = 0x01,
-  PGM_STATUS = 0x02,
-  PGM_DELETE = 0x03,
-  PGM_RETRY_CRC = 0x04,
+  PGM_PULSED = 0x02,
+  PGM_RETENTION = 0x03,
+  PGM_STATUS = 0x04,
+  PGM_DELETE = 0x05,
+  PGM_RETRY_CRC = 0x06,
 } PGM_FUNCTION_t;
 
 typedef enum {
@@ -72,6 +74,13 @@ typedef enum {
   PGM_PACKET_FAIL_CHECKSUM,
   PGM_PACKET_FAIL_UNKNOWN = 0xFF
 } pgm_packet_error_e;
+
+typedef struct{
+  bool state;
+  bool previous_state;
+  uint8_t function;
+  uint16_t time;
+} pgm_timebase_t;
 
 typedef struct {
   uint8_t len;
@@ -131,6 +140,8 @@ volatile uint32_t systick = 0;
 volatile uint32_t delay_tx = 0;
 volatile bool aguardando_envio = false;
 volatile bool piscando = false;
+uint16_t cont_rele[4] = {0,0,0,0};
+bool time_rele_flag[4] = {0,0,0,0};
 
 // União bitflag
 typedef union {
@@ -167,7 +178,10 @@ typedef struct {
   pgm_alarm_packet_t alarm_packet;
   pgm_gate_packet_t gate_packet;
   FLAG_Bits status_rele, ligar_rele;
+  pgm_timebase_t run_rele[4];
 } pgm_t;
+
+bool new_state_rl1;
 
 pgm_t pgm;
 

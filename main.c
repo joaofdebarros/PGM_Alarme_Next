@@ -6,6 +6,8 @@
  */
 
 #include "main.h"
+#include "xmc_gpio.h"
+#include <stdint.h>
 
 pgm_packet_error_e pgm_alarm_packet_demount(uint8_t *datain, uint16_t len,
                                             pgm_alarm_packet_t *packet) {
@@ -454,13 +456,121 @@ void SysTick_Handler(void) {
     }
   }
 
+  if (--cont_rele[0] == 0) {
+    if (pgm.run_rele[0].function == PGM_PULSED) {
+      cont_rele[0] = pgm.run_rele[0].time;
+    }
+
+    time_rele_flag[0] = true;
+  }
+
+  if (--cont_rele[1] == 0) {
+    if (pgm.run_rele[1].function == PGM_PULSED) {
+      cont_rele[1] = pgm.run_rele[1].time;
+    }
+    time_rele_flag[1] = true;
+  }
+
+  if (--cont_rele[2] == 0) {
+    if (pgm.run_rele[2].function == PGM_PULSED) {
+      cont_rele[2] = pgm.run_rele[2].time;
+    }
+    time_rele_flag[2] = true;
+  }
+
+  if (--cont_rele[3] == 0) {
+    if (pgm.run_rele[3].function == PGM_PULSED) {
+      cont_rele[3] = pgm.run_rele[3].time;
+    }
+    time_rele_flag[3] = true;
+  }
+
   systick++;
 }
 
-// Rotina para receber dados
-void USIC0_1_IRQHandler(void) { new_alarm_packet = true; }
+void rele_Control() {
+  if (time_rele_flag[0]) {
+    if (pgm.run_rele[0].function == PGM_PULSED) {
+	  new_state_rl1 = !(pgm.run_rele[0].previous_state);
+      time_rele_flag[0] = false;
+      if(new_state_rl1){
+		XMC_GPIO_SetOutputHigh(rele_ports[0],
+                            rele_pins[0]);
+	  }else{
+		XMC_GPIO_SetOutputLow(rele_ports[0],
+                            rele_pins[0]);
+	  }
+      
+	  pgm.run_rele[0].previous_state = new_state_rl1;
+    }
 
-void USIC0_2_IRQHandler(void) { new_gate_packet = true; }
+    if (pgm.run_rele[0].function == PGM_RETENTION) {
+      time_rele_flag[0] = false;
+      XMC_GPIO_SetOutputLevel(rele_ports[pgm.alarm_packet.data[0]],
+                            rele_pins[pgm.alarm_packet.data[0]],
+                            1);
+    }
+  }
+	
+  if (time_rele_flag[1]) {
+    if (pgm.run_rele[1].function == PGM_PULSED) {
+		bool new_state = !(pgm.run_rele[1].previous_state);
+      time_rele_flag[1] = false;
+      XMC_GPIO_SetOutputLevel(rele_ports[1],
+                            rele_pins[1], new_state);
+    }
+
+    if (pgm.run_rele[1].function == PGM_RETENTION) {
+      time_rele_flag[1] = false;
+      XMC_GPIO_SetOutputLevel(rele_ports[pgm.alarm_packet.data[1]],
+                            rele_pins[pgm.alarm_packet.data[1]],
+                            1);
+    }
+  }
+  
+  if (time_rele_flag[2]) {
+    if (pgm.run_rele[2].function == PGM_PULSED) {
+		bool new_state = !(pgm.run_rele[2].previous_state);
+      time_rele_flag[2] = false;
+      XMC_GPIO_SetOutputLevel(rele_ports[2],
+                            rele_pins[2], new_state);
+    }
+
+    if (pgm.run_rele[2].function == PGM_RETENTION) {
+      time_rele_flag[2] = false;
+      XMC_GPIO_SetOutputLevel(rele_ports[pgm.alarm_packet.data[2]],
+                            rele_pins[pgm.alarm_packet.data[2]],
+                            1);
+    }
+  }
+  
+  if (time_rele_flag[3]) {
+    if (pgm.run_rele[3].function == PGM_PULSED) {
+		bool new_state = !(pgm.run_rele[3].previous_state);
+      time_rele_flag[3] = false;
+      XMC_GPIO_SetOutputLevel(rele_ports[3],
+                            rele_pins[3], new_state);
+    }
+
+    if (pgm.run_rele[3].function == PGM_RETENTION) {
+      time_rele_flag[3] = false;
+      XMC_GPIO_SetOutputLevel(rele_ports[pgm.alarm_packet.data[3]],
+                            rele_pins[pgm.alarm_packet.data[3]],
+                            1);
+    }
+  }
+}
+
+// Rotina para receber dados
+void USIC0_1_IRQHandler(void) {
+  new_alarm_packet = true;
+  receive_alarm_packet();
+}
+
+void USIC0_2_IRQHandler(void) {
+  new_gate_packet = true;
+  receive_gate_packet();
+}
 // Máquina de estado_alarms
 void Control_alarm() {
 
@@ -479,19 +589,12 @@ void Control_alarm() {
     XMC_GPIO_SetOutputHigh(Bus_Controle_PORT, Bus_Controle_PIN);
     if (alarm_packet_completed) {
 
-      if (Rx_buffer[FUNCTION] == PGM_REGISTER && !cadastrado) {
+      if (pgm.alarm_packet.function == PGM_REGISTER && !cadastrado) {
+        estado_alarm = GET_UID;
 
-        if (Rx_buffer[UNIQUEID] == crc_address) {
-
-          numero_modulo = Rx_buffer[4];
-          cadastrado = true;
-
-        } else {
-          estado_alarm = GET_UID;
-        }
-
-      } else if (Rx_buffer[FUNCTION] == PGM_RETRY_CRC && Rx_buffer[8] == NAK) {
-        if (Rx_buffer[IDT] == PGM_ID && Rx_buffer[4] == UID0 &&
+      } else if (pgm.alarm_packet.function == PGM_RETRY_CRC &&
+                 Rx_buffer[8] == NAK) {
+        if (pgm.alarm_packet.id == PGM_ID && Rx_buffer[4] == UID0 &&
             Rx_buffer[5] == UID1 && Rx_buffer[6] == UID2 &&
             Rx_buffer[7] == UID3) {
           pgm.ligar_rele.Byte = 0x00;
@@ -501,7 +604,7 @@ void Control_alarm() {
           update_flash(incremento);
           crc_address = crc8((uint8_t *)UniqueChipID, 16, incremento);
           estado_alarm = RL_CONTROL;
-        } else if (Rx_buffer[IDT] == PGM_BROADCAST_ID) {
+        } else if (pgm.alarm_packet.id == PGM_BROADCAST_ID) {
           pgm.ligar_rele.Byte = 0x00;
           numero_modulo = 0;
           cadastrado = false;
@@ -515,32 +618,42 @@ void Control_alarm() {
           estado_alarm = LIMPAR;
         }
 
-      } else if (Rx_buffer[FUNCTION] == PGM_STATUS &&
-                 Rx_buffer[UNIQUEID] == crc_address) {
+      } else if (pgm.alarm_packet.function == PGM_STATUS &&
+                 pgm.alarm_packet.address == crc_address) {
         cadastrado = true;
-        numero_modulo = Rx_buffer[DATA] + 1;
+        numero_modulo = pgm.alarm_packet.data[0] + 1;
         estado_alarm = STATUS_RL;
-      } else if (Rx_buffer[FUNCTION] == PGM_TOGGLE) {
-        if (Rx_buffer[IDT] == PGM_BROADCAST_ID) {
-          pgm.ligar_rele.Byte = Rx_buffer[DATA];
+      } else if (pgm.alarm_packet.function == PGM_TOGGLE ||
+                 pgm.alarm_packet.function == PGM_PULSED ||
+                 pgm.alarm_packet.function == PGM_RETENTION) {
+        if (pgm.alarm_packet.id == PGM_BROADCAST_ID) {
+          //          pgm.ligar_rele.Byte = pgm.alarm_packet.data;
           estado_alarm = RL_CONTROL;
-        } else if (Rx_buffer[IDT] == PGM_ID &&
-                   Rx_buffer[UNIQUEID] == crc_address) {
-          pgm.ligar_rele.Byte = Rx_buffer[DATA];
+        } else if (pgm.alarm_packet.id == PGM_ID &&
+                   pgm.alarm_packet.address == crc_address) {
+
+          pgm.run_rele[pgm.alarm_packet.data[0]].function =
+              pgm.alarm_packet.function;
+          pgm.run_rele[pgm.alarm_packet.data[0]].state =
+              pgm.alarm_packet.data[1];
+          pgm.run_rele[pgm.alarm_packet.data[0]].time =
+            (((uint16_t)pgm.alarm_packet.data[2] << 8) | pgm.alarm_packet.data[3]);
+
+          //          pgm.ligar_rele.Byte = pgm.alarm_packet.data;
           estado_alarm = RL_CONTROL;
         } else {
           pacote_obsoleto = true;
           estado_alarm = LIMPAR;
         }
 
-      } else if (Rx_buffer[FUNCTION] == PGM_DELETE) {
-        if (Rx_buffer[IDT] == PGM_BROADCAST_ID) {
+      } else if (pgm.alarm_packet.function == PGM_DELETE) {
+        if (pgm.alarm_packet.id == PGM_BROADCAST_ID) {
           pgm.ligar_rele.Byte = 0x00;
           cadastrado = false;
           pacote_obsoleto = true;
           estado_alarm = RL_CONTROL;
-        } else if (Rx_buffer[IDT] == PGM_ID &&
-                   Rx_buffer[UNIQUEID] == crc_address) {
+        } else if (pgm.alarm_packet.id == PGM_ID &&
+                   pgm.alarm_packet.address == crc_address) {
           pgm.ligar_rele.Byte = 0x00;
           cadastrado = false;
           pacote_obsoleto = true;
@@ -570,7 +683,7 @@ void Control_alarm() {
   } break;
 
   case STATUS_RL: {
-    if (Rx_buffer[UNIQUEID] == crc_address) {
+    if (pgm.alarm_packet.address == crc_address) {
       // Enviar o status de cada rele
       buffer_size = 8;
       montar_pacote(Buffer_TX, buffer_size, PGM_ID_RESPONSE, crc_address,
@@ -587,22 +700,20 @@ void Control_alarm() {
 
   case RL_CONTROL: {
     // Ligar cada rele conforme solicitado
-    for (int i = 0; i < 5; i++) {
-      uint8_t mask =
-          (1 << i); // cria uma máscara para cada bit (rele_1 até rele_5)
-
-      if (pgm.ligar_rele.Byte & mask) {
-        XMC_GPIO_SetOutputHigh(rele_ports[i], rele_pins[i]);
-        pgm.status_rele.Byte |= mask;
-      } else {
-        XMC_GPIO_SetOutputLow(rele_ports[i], rele_pins[i]);
-        pgm.status_rele.Byte &= ~mask;
-      }
+    XMC_GPIO_SetOutputLevel(rele_ports[pgm.alarm_packet.data[0]],
+                            rele_pins[pgm.alarm_packet.data[0]],
+                            pgm.run_rele[pgm.alarm_packet.data[0]].state);
+    if (pgm.run_rele[pgm.alarm_packet.data[0]].function == PGM_PULSED ||
+        pgm.run_rele[pgm.alarm_packet.data[0]].function == PGM_RETENTION) {
+	  pgm.run_rele[pgm.alarm_packet.data[0]].previous_state = pgm.run_rele[pgm.alarm_packet.data[0]].state;
+      cont_rele[pgm.alarm_packet.data[0]] =
+          pgm.run_rele[pgm.alarm_packet.data[0]].time;
     }
+    //    rele_Control();
 
     buffer_size = 8;
     montar_pacote(Buffer_TX, buffer_size, PGM_ID_RESPONSE, crc_address,
-                  PGM_TOGGLE, &ACK, 1, false);
+                  pgm.alarm_packet.function, &ACK, 1, false);
     estado_alarm = TRANSMIT;
 
   } break;
@@ -815,11 +926,10 @@ int main(void) {
   crc_address = crc8((uint8_t *)UniqueChipID, 16, incremento);
 
   while (1) {
-    receive_alarm_packet();
+    rele_Control();
+        receive_alarm_packet();
     Control_alarm();
-    receive_gate_packet();
+    //    receive_gate_packet();
     Control_gate();
   }
 }
-
-
