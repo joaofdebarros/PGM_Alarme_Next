@@ -287,10 +287,10 @@ void reset_uart() {
                              UART_Bus_DX0_INPUT);
   XMC_UART_CH_SetSamplePoint(UART_Bus_HW, 8U);
   XMC_USIC_CH_SetFractionalDivider(
-      UART_Bus_HW, XMC_USIC_CH_BRG_CLOCK_DIVIDER_MODE_FRACTIONAL, 383U);
+      UART_Bus_HW, XMC_USIC_CH_BRG_CLOCK_DIVIDER_MODE_FRACTIONAL, 289U);
   XMC_USIC_CH_SetBaudrateDivider(UART_Bus_HW,
                                  XMC_USIC_CH_BRG_CLOCK_SOURCE_DIVIDER, false,
-                                 624U, XMC_USIC_CH_BRG_CTQSEL_PDIV, 0U, 15U);
+                                 58U, XMC_USIC_CH_BRG_CTQSEL_PDIV, 0U, 15U);
   XMC_USIC_CH_RXFIFO_Configure(UART_Bus_HW, UART_Bus_RXFIFO_DPTR,
                                UART_Bus_RXFIFO_SIZE, UART_Bus_RXFIFO_LIMIT);
   XMC_USIC_CH_TXFIFO_Configure(UART_Bus_HW, UART_Bus_TXFIFO_DPTR,
@@ -793,7 +793,7 @@ void Control_alarm() {
 
       XMC_GPIO_SetOutputHigh(Bus_Controle_PORT, Bus_Controle_PIN);
 
-      XMC_Delay(10);
+      XMC_Delay(2);
       switch_to_gpio();
 
       pacote_obsoleto = true;
