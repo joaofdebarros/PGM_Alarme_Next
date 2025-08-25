@@ -75,7 +75,7 @@ typedef enum {
   PGM_PACKET_FAIL_UNKNOWN = 0xFF
 } pgm_packet_error_e;
 
-typedef struct{
+typedef struct {
   bool state;
   bool previous_state;
   uint8_t function;
@@ -140,8 +140,11 @@ volatile uint32_t systick = 0;
 volatile uint32_t delay_tx = 0;
 volatile bool aguardando_envio = false;
 volatile bool piscando = false;
-uint16_t cont_rele[4] = {0,0,0,0};
-bool time_rele_flag[4] = {0,0,0,0};
+uint16_t cont_rele[4] = {0, 0, 0, 0};
+bool time_rele_flag[4] = {0, 0, 0, 0};
+
+bool new_state_rl[4];
+bool pulsing_rl[4];
 
 // União bitflag
 typedef union {
@@ -181,11 +184,7 @@ typedef struct {
   pgm_timebase_t run_rele[4];
 } pgm_t;
 
-bool new_state_rl1;
 
 pgm_t pgm;
-
-
-
 
 #endif /* MAIN_H_ */

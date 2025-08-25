@@ -490,73 +490,90 @@ void SysTick_Handler(void) {
 
 void rele_Control() {
   if (time_rele_flag[0]) {
-    if (pgm.run_rele[0].function == PGM_PULSED) {
-	  new_state_rl1 = !(pgm.run_rele[0].previous_state);
+    if (pgm.run_rele[0].function == PGM_PULSED && pulsing_rl[0] == true) {
+      new_state_rl[0] = !(pgm.run_rele[0].previous_state);
       time_rele_flag[0] = false;
-      if(new_state_rl1){
-		XMC_GPIO_SetOutputHigh(rele_ports[0],
-                            rele_pins[0]);
-	  }else{
-		XMC_GPIO_SetOutputLow(rele_ports[0],
-                            rele_pins[0]);
-	  }
-      
-	  pgm.run_rele[0].previous_state = new_state_rl1;
-    }
+      if (new_state_rl[0]) {
+        XMC_GPIO_SetOutputHigh(rele_ports[0], rele_pins[0]);
+      } else {
+        XMC_GPIO_SetOutputLow(rele_ports[0], rele_pins[0]);
+      }
+
+      pgm.run_rele[0].previous_state = new_state_rl[0];
+    }else{
+	  XMC_GPIO_SetOutputLow(rele_ports[0], rele_pins[0]);
+	}
 
     if (pgm.run_rele[0].function == PGM_RETENTION) {
       time_rele_flag[0] = false;
-      XMC_GPIO_SetOutputLevel(rele_ports[pgm.alarm_packet.data[0]],
-                            rele_pins[pgm.alarm_packet.data[0]],
-                            1);
+      XMC_GPIO_SetOutputLow(rele_ports[0],
+                              rele_pins[0]);
     }
   }
-	
+
   if (time_rele_flag[1]) {
-    if (pgm.run_rele[1].function == PGM_PULSED) {
-		bool new_state = !(pgm.run_rele[1].previous_state);
+    if (pgm.run_rele[1].function == PGM_PULSED && pulsing_rl[1] == true) {
+      new_state_rl[1] = !(pgm.run_rele[1].previous_state);
       time_rele_flag[1] = false;
-      XMC_GPIO_SetOutputLevel(rele_ports[1],
-                            rele_pins[1], new_state);
-    }
+      if (new_state_rl[1]) {
+        XMC_GPIO_SetOutputHigh(rele_ports[1], rele_pins[1]);
+      } else {
+        XMC_GPIO_SetOutputLow(rele_ports[1], rele_pins[1]);
+      }
+
+      pgm.run_rele[1].previous_state = new_state_rl[1];
+    }else{
+	  XMC_GPIO_SetOutputLow(rele_ports[1], rele_pins[1]);
+	}
 
     if (pgm.run_rele[1].function == PGM_RETENTION) {
       time_rele_flag[1] = false;
-      XMC_GPIO_SetOutputLevel(rele_ports[pgm.alarm_packet.data[1]],
-                            rele_pins[pgm.alarm_packet.data[1]],
-                            1);
+      XMC_GPIO_SetOutputLow(rele_ports[1],
+                              rele_pins[1]);
     }
   }
-  
+
   if (time_rele_flag[2]) {
-    if (pgm.run_rele[2].function == PGM_PULSED) {
-		bool new_state = !(pgm.run_rele[2].previous_state);
+    if (pgm.run_rele[2].function == PGM_PULSED && pulsing_rl[2] == true) {
+      new_state_rl[2] = !(pgm.run_rele[2].previous_state);
       time_rele_flag[2] = false;
-      XMC_GPIO_SetOutputLevel(rele_ports[2],
-                            rele_pins[2], new_state);
-    }
+      if (new_state_rl[2]) {
+        XMC_GPIO_SetOutputHigh(rele_ports[2], rele_pins[2]);
+      } else {
+        XMC_GPIO_SetOutputLow(rele_ports[2], rele_pins[2]);
+      }
+
+      pgm.run_rele[2].previous_state = new_state_rl[2];
+    }else{
+	  XMC_GPIO_SetOutputLow(rele_ports[2], rele_pins[2]);
+	}
 
     if (pgm.run_rele[2].function == PGM_RETENTION) {
       time_rele_flag[2] = false;
-      XMC_GPIO_SetOutputLevel(rele_ports[pgm.alarm_packet.data[2]],
-                            rele_pins[pgm.alarm_packet.data[2]],
-                            1);
+      XMC_GPIO_SetOutputLow(rele_ports[2],
+                              rele_pins[2]);
     }
   }
-  
+
   if (time_rele_flag[3]) {
-    if (pgm.run_rele[3].function == PGM_PULSED) {
-		bool new_state = !(pgm.run_rele[3].previous_state);
+    if (pgm.run_rele[3].function == PGM_PULSED && pulsing_rl[3] == true) {
+      new_state_rl[3] = !(pgm.run_rele[3].previous_state);
       time_rele_flag[3] = false;
-      XMC_GPIO_SetOutputLevel(rele_ports[3],
-                            rele_pins[3], new_state);
-    }
+      if (new_state_rl[3]) {
+        XMC_GPIO_SetOutputHigh(rele_ports[3], rele_pins[3]);
+      } else {
+        XMC_GPIO_SetOutputLow(rele_ports[3], rele_pins[3]);
+      }
+
+      pgm.run_rele[3].previous_state = new_state_rl[3];
+    }else{
+	  XMC_GPIO_SetOutputLow(rele_ports[3], rele_pins[3]);
+	}
 
     if (pgm.run_rele[3].function == PGM_RETENTION) {
       time_rele_flag[3] = false;
-      XMC_GPIO_SetOutputLevel(rele_ports[pgm.alarm_packet.data[3]],
-                            rele_pins[pgm.alarm_packet.data[3]],
-                            1);
+      XMC_GPIO_SetOutputLow(rele_ports[3],
+                              rele_pins[3]);
     }
   }
 }
@@ -637,9 +654,15 @@ void Control_alarm() {
           pgm.run_rele[pgm.alarm_packet.data[0]].state =
               pgm.alarm_packet.data[1];
           pgm.run_rele[pgm.alarm_packet.data[0]].time =
-            (((uint16_t)pgm.alarm_packet.data[2] << 8) | pgm.alarm_packet.data[3]);
+              (((uint16_t)pgm.alarm_packet.data[2] << 8) |
+               pgm.alarm_packet.data[3]);
 
-          //          pgm.ligar_rele.Byte = pgm.alarm_packet.data;
+          if(pgm.run_rele[pgm.alarm_packet.data[0]].function == PGM_PULSED && pgm.run_rele[pgm.alarm_packet.data[0]].state == true){
+			pulsing_rl[pgm.alarm_packet.data[0]] = true;
+		  }else{
+			pulsing_rl[pgm.alarm_packet.data[0]] = false;
+		  }
+		  
           estado_alarm = RL_CONTROL;
         } else {
           pacote_obsoleto = true;
@@ -705,7 +728,8 @@ void Control_alarm() {
                             pgm.run_rele[pgm.alarm_packet.data[0]].state);
     if (pgm.run_rele[pgm.alarm_packet.data[0]].function == PGM_PULSED ||
         pgm.run_rele[pgm.alarm_packet.data[0]].function == PGM_RETENTION) {
-	  pgm.run_rele[pgm.alarm_packet.data[0]].previous_state = pgm.run_rele[pgm.alarm_packet.data[0]].state;
+      pgm.run_rele[pgm.alarm_packet.data[0]].previous_state =
+          pgm.run_rele[pgm.alarm_packet.data[0]].state;
       cont_rele[pgm.alarm_packet.data[0]] =
           pgm.run_rele[pgm.alarm_packet.data[0]].time;
     }
@@ -927,7 +951,7 @@ int main(void) {
 
   while (1) {
     rele_Control();
-        receive_alarm_packet();
+    receive_alarm_packet();
     Control_alarm();
     //    receive_gate_packet();
     Control_gate();
