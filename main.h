@@ -9,6 +9,7 @@
 #define MAIN_H_
 
 #include "XMC1100.h"
+//#include "cy_syslib.h"
 #include "cy_utils.h"
 #include "cybsp.h"
 #include "cycfg_peripherals.h"
@@ -49,6 +50,9 @@ uint8_t package_size = 0;
 uint8_t Rx_buffer[TAMANHO_BUFFER_ACK];
 uint8_t Rx_buffer_index = 0;
 uint8_t Buffer_TX[TAMANHO_BUFFER_ACK] = {0};
+
+uint8_t Rx_buffer_gate[40];
+uint8_t Tx_buffer_gate[40];
 
 typedef enum {
   PGM_ID = 0x01,
@@ -96,7 +100,7 @@ typedef struct {
   uint8_t len;
   uint8_t id;
   uint8_t function;
-  uint8_t data[5];
+  uint8_t data[40];
   uint8_t checksum;
   uint8_t tail;
 } pgm_gate_packet_t;
