@@ -454,6 +454,11 @@ void SysTick_Handler(void) {
       blink_led_ST(numero_modulo);
     }
   }
+  
+  if(--gate_packet_delay == 0){
+	send_packet = true;
+	gate_packet_delay = 1000;
+  }
 
   if (--cont_rele[0] == 0) {
     if (pgm.run_rele[0].function == PGM_PULSED) {
@@ -461,7 +466,9 @@ void SysTick_Handler(void) {
       time_rele_flag[0] = true;
     }else if(pgm.run_rele[0].function == PGM_RETENTION){
 	  time_rele_flag[0] = true;
-	}else{
+	}else if(pgm.run_rele[0].function == PGM_GATE_DELAY){
+	  time_rele_flag[0] = true;
+	}else {
 		time_rele_flag[0] = false;
 	}
 
@@ -470,9 +477,11 @@ void SysTick_Handler(void) {
 
   if (--cont_rele[1] == 0) {
     if (pgm.run_rele[1].function == PGM_PULSED) {
-      cont_rele[1] = pgm.run_rele[0].time;
+      cont_rele[1] = pgm.run_rele[1].time;
       time_rele_flag[1] = true;
     }else if(pgm.run_rele[1].function == PGM_RETENTION){
+	  time_rele_flag[1] = true;
+	}else if(pgm.run_rele[1].function == PGM_GATE_DELAY){
 	  time_rele_flag[1] = true;
 	}else{
 		time_rele_flag[1] = false;
@@ -483,9 +492,11 @@ void SysTick_Handler(void) {
 
   if (--cont_rele[2] == 0) {
     if (pgm.run_rele[2].function == PGM_PULSED) {
-      cont_rele[2] = pgm.run_rele[0].time;
+      cont_rele[2] = pgm.run_rele[2].time;
       time_rele_flag[2] = true;
     }else if(pgm.run_rele[2].function == PGM_RETENTION){
+	  time_rele_flag[2] = true;
+	}else if(pgm.run_rele[2].function == PGM_GATE_DELAY){
 	  time_rele_flag[2] = true;
 	}else{
 		time_rele_flag[2] = false;
@@ -496,9 +507,11 @@ void SysTick_Handler(void) {
 
   if (--cont_rele[3] == 0) {
     if (pgm.run_rele[3].function == PGM_PULSED) {
-      cont_rele[3] = pgm.run_rele[0].time;
+      cont_rele[3] = pgm.run_rele[3].time;
       time_rele_flag[3] = true;
     }else if(pgm.run_rele[3].function == PGM_RETENTION){
+	  time_rele_flag[3] = true;
+	}else if(pgm.run_rele[3].function == PGM_GATE_DELAY){
 	  time_rele_flag[3] = true;
 	}else{
 		time_rele_flag[3] = false;
@@ -511,6 +524,7 @@ void SysTick_Handler(void) {
 }
 
 void rele_Control() {
+    
   if (time_rele_flag[0]) {
     if (pgm.run_rele[0].function == PGM_PULSED && pulsing_rl[0] == true) {
       new_state_rl[0] = !(pgm.run_rele[0].previous_state);
@@ -531,96 +545,173 @@ void rele_Control() {
       XMC_GPIO_SetOutputLow(rele_ports[0],
                               rele_pins[0]);
     }
+    
+    if (pgm.run_rele[0].function == PGM_GATE_DELAY) {
+      time_rele_flag[0] = false;
+      XMC_GPIO_SetOutputHigh(rele_ports[0], rele_pins[0]);
+    }
   }
 
   if (time_rele_flag[1]) {
-    if (pgm.run_rele[1].function == PGM_PULSED && pulsing_rl[1] == true) {
-      new_state_rl[1] = !(pgm.run_rele[1].previous_state);
-      time_rele_flag[1] = false;
-      if (new_state_rl[1]) {
-        XMC_GPIO_SetOutputHigh(rele_ports[1], rele_pins[1]);
-      } else {
-        XMC_GPIO_SetOutputLow(rele_ports[1], rele_pins[1]);
-      }
-
-      pgm.run_rele[1].previous_state = new_state_rl[1];
-    }else{
-	  XMC_GPIO_SetOutputLow(rele_ports[1], rele_pins[1]);
-	}
+    if (pgm.run_rele[1].function == PGM_PULSED) {
+		if(pulsing_rl[1] == true){
+		  new_state_rl[1] = !(pgm.run_rele[1].previous_state);
+	      time_rele_flag[1] = false;
+	      if (new_state_rl[1]) {
+	        XMC_GPIO_SetOutputHigh(rele_ports[1], rele_pins[1]);
+	      } else {
+	        XMC_GPIO_SetOutputLow(rele_ports[1], rele_pins[1]);
+	      }
+	
+	      pgm.run_rele[1].previous_state = new_state_rl[1];
+		}else{
+	  	  XMC_GPIO_SetOutputLow(rele_ports[1], rele_pins[1]);
+	   }
+    }
 
     if (pgm.run_rele[1].function == PGM_RETENTION) {
       time_rele_flag[1] = false;
       XMC_GPIO_SetOutputLow(rele_ports[1],
                               rele_pins[1]);
     }
+    
+    if (pgm.run_rele[1].function == PGM_GATE_DELAY) {
+      time_rele_flag[1] = false;
+      XMC_GPIO_SetOutputHigh(rele_ports[1], rele_pins[1]);
+    }
   }
 
   if (time_rele_flag[2]) {
-    if (pgm.run_rele[2].function == PGM_PULSED && pulsing_rl[2] == true) {
-      new_state_rl[2] = !(pgm.run_rele[2].previous_state);
-      time_rele_flag[2] = false;
-      if (new_state_rl[2]) {
-        XMC_GPIO_SetOutputHigh(rele_ports[2], rele_pins[2]);
-      } else {
-        XMC_GPIO_SetOutputLow(rele_ports[2], rele_pins[2]);
-      }
-
-      pgm.run_rele[2].previous_state = new_state_rl[2];
-    }else{
-	  XMC_GPIO_SetOutputLow(rele_ports[2], rele_pins[2]);
-	}
+    if (pgm.run_rele[2].function == PGM_PULSED) {
+		if(pulsing_rl[2] == true){
+		  new_state_rl[2] = !(pgm.run_rele[2].previous_state);
+	      time_rele_flag[2] = false;
+	      if (new_state_rl[2]) {
+	        XMC_GPIO_SetOutputHigh(rele_ports[2], rele_pins[2]);
+	      } else {
+	        XMC_GPIO_SetOutputLow(rele_ports[2], rele_pins[2]);
+	      }
+	
+	      pgm.run_rele[2].previous_state = new_state_rl[2];
+		}else{
+	  	  XMC_GPIO_SetOutputLow(rele_ports[2], rele_pins[2]);
+	   }
+    }
 
     if (pgm.run_rele[2].function == PGM_RETENTION) {
       time_rele_flag[2] = false;
       XMC_GPIO_SetOutputLow(rele_ports[2],
                               rele_pins[2]);
     }
+    
+    if (pgm.run_rele[2].function == PGM_GATE_DELAY) {
+      time_rele_flag[2] = false;
+      XMC_GPIO_SetOutputHigh(rele_ports[2], rele_pins[2]);
+    }
   }
 
   if (time_rele_flag[3]) {
-    if (pgm.run_rele[3].function == PGM_PULSED && pulsing_rl[3] == true) {
-      new_state_rl[3] = !(pgm.run_rele[3].previous_state);
-      time_rele_flag[3] = false;
-      if (new_state_rl[3]) {
-        XMC_GPIO_SetOutputHigh(rele_ports[3], rele_pins[3]);
-      } else {
-        XMC_GPIO_SetOutputLow(rele_ports[3], rele_pins[3]);
-      }
-
-      pgm.run_rele[3].previous_state = new_state_rl[3];
-    }else{
-	  XMC_GPIO_SetOutputLow(rele_ports[3], rele_pins[3]);
-	}
+    if (pgm.run_rele[3].function == PGM_PULSED) {
+		if(pulsing_rl[3] == true){
+		  new_state_rl[3] = !(pgm.run_rele[3].previous_state);
+	      time_rele_flag[3] = false;
+	      if (new_state_rl[3]) {
+	        XMC_GPIO_SetOutputHigh(rele_ports[3], rele_pins[3]);
+	      } else {
+	        XMC_GPIO_SetOutputLow(rele_ports[3], rele_pins[3]);
+	      }
+	
+	      pgm.run_rele[3].previous_state = new_state_rl[3];
+		}else{
+	  	  XMC_GPIO_SetOutputLow(rele_ports[3], rele_pins[3]);
+	   }
+    }
 
     if (pgm.run_rele[3].function == PGM_RETENTION) {
       time_rele_flag[3] = false;
       XMC_GPIO_SetOutputLow(rele_ports[3],
                               rele_pins[3]);
     }
+    
+    if (pgm.run_rele[3].function == PGM_GATE_DELAY) {
+      time_rele_flag[3] = false;
+      XMC_GPIO_SetOutputHigh(rele_ports[3], rele_pins[3]);
+    }
   }
+}
+
+void rele_stop(uint8_t rele_index){
+	time_rele_flag[rele_index] = false;
+	pulsing_rl[rele_index] = false;
+	rele_started[rele_index] = false;
+	XMC_GPIO_SetOutputLow(rele_ports[rele_index], rele_pins[rele_index]);
+}
+
+void rele_start(uint8_t rele_index, uint8_t function, uint8_t state, uint16_t time){
+	
+	if(!rele_started[rele_index]){
+		rele_started[rele_index] = true;
+		
+		pgm.run_rele[rele_index].function = function;
+	    pgm.run_rele[rele_index].state = state;
+	    pgm.run_rele[rele_index].time = time;
+	
+		// Ligar cada rele conforme solicitado
+		if (pgm.run_rele[rele_index].function == PGM_TOGGLE) {
+	      if(pgm.run_rele[rele_index].state == true){
+			  XMC_GPIO_SetOutputHigh(rele_ports[rele_index], rele_pins[rele_index]);
+		  }else if(pgm.run_rele[rele_index].state == false){
+			  XMC_GPIO_SetOutputLow(rele_ports[rele_index], rele_pins[rele_index]);
+		  }
+	    }
+	    
+	    if (pgm.run_rele[rele_index].function == PGM_PULSED) {
+	      pgm.run_rele[rele_index].previous_state = pgm.run_rele[rele_index].state;
+	      cont_rele[rele_index] = pgm.run_rele[rele_index].time;
+	      
+	      if(pgm.run_rele[rele_index].state == true){
+			  pulsing_rl[rele_index] = true;
+		  }else{
+			  pulsing_rl[rele_index] = false;
+		  }
+	    }
+	    
+	    if (pgm.run_rele[rele_index].function == PGM_RETENTION) {
+		  XMC_GPIO_SetOutputHigh(rele_ports[rele_index], rele_pins[rele_index]);
+	      pgm.run_rele[rele_index].previous_state = pgm.run_rele[rele_index].state;
+	      cont_rele[rele_index] = (pgm.run_rele[rele_index].time);
+	    }
+	    
+	    if(pgm.run_rele[rele_index].function == PGM_GATE_DELAY){
+			pgm.run_rele[rele_index].previous_state = false;
+	      	cont_rele[rele_index] = (pgm.run_rele[rele_index].time);
+		}
+	}
+	
 }
 
 // Rotina para receber dados
 void USIC0_1_IRQHandler(void) {
   new_alarm_packet = true;
-  receive_alarm_packet();
 }
 
 void USIC0_2_IRQHandler(void) {
   new_gate_packet = true;
-  receive_gate_packet();
 }
+
+
 // Máquina de estado_alarms
 void Control_alarm() {
 
 #define RECEIVE 0
 #define GET_UID 1
 #define STATUS_RL 2
-#define RL_CONTROL 3
-#define DELETE 4
-#define TRANSMIT 5
-#define DELAY_ENVIO 6
-#define LIMPAR 7
+#define GATE_STATUS 3
+#define RL_CONTROL 4
+#define DELETE 5
+#define TRANSMIT 6
+#define DELAY_ENVIO 7
+#define LIMPAR 8
 
   switch (estado_alarm) {
   case RECEIVE: {
@@ -666,15 +757,7 @@ void Control_alarm() {
           estado_alarm = RL_CONTROL;
         } else if (pgm.alarm_packet.id == PGM_ID && pgm.alarm_packet.address == crc_address) {
 
-          pgm.run_rele[pgm.alarm_packet.data[0]].function = pgm.alarm_packet.function;
-          pgm.run_rele[pgm.alarm_packet.data[0]].state = pgm.alarm_packet.data[1];
-          pgm.run_rele[pgm.alarm_packet.data[0]].time = (((uint16_t)pgm.alarm_packet.data[2] << 8) | pgm.alarm_packet.data[3]);
-
-          if(pgm.run_rele[pgm.alarm_packet.data[0]].function == PGM_PULSED && pgm.run_rele[pgm.alarm_packet.data[0]].state == true){
-			pulsing_rl[pgm.alarm_packet.data[0]] = true;
-		  }else{
-			pulsing_rl[pgm.alarm_packet.data[0]] = false;
-		  }
+          rele_start(pgm.alarm_packet.data[0], pgm.alarm_packet.function, pgm.alarm_packet.data[1], (((uint16_t)pgm.alarm_packet.data[2] << 8) | pgm.alarm_packet.data[3]));
 		  
           estado_alarm = RL_CONTROL;
         } else {
@@ -698,7 +781,17 @@ void Control_alarm() {
           estado_alarm = LIMPAR;
         }
 
-      } else {
+      } else if(pgm.alarm_packet.function == PGM_GATE_STATUS && pgm.alarm_packet.address == crc_address){
+		estado_alarm = GATE_STATUS;
+	  } else if(pgm.alarm_packet.function == PGM_GATE_CMD && pgm.alarm_packet.address == crc_address){
+		pgm.gate_info.action = pgm.alarm_packet.data[0];
+		send_gate_cmd = true;
+		
+		buffer_size = 8;
+    	montar_pacote(Buffer_TX, buffer_size, PGM_ID_RESPONSE, crc_address,
+                  PGM_GATE_CMD, &ACK, 1, false);
+    	estado_alarm = TRANSMIT;
+	  } else{
         pacote_obsoleto = true;
         estado_alarm = LIMPAR;
       }
@@ -732,28 +825,25 @@ void Control_alarm() {
     }
 
   } break;
+  
+  case GATE_STATUS: {
+    // Enviar o UID do dispositivo
+    if(gate_info_ready){
+		gate_info_ready = false;
+		
+		buffer_size = 8;
+    	
+    	montar_pacote(Buffer_TX, buffer_size, PGM_ID_RESPONSE, crc_address, PGM_GATE_STATUS,
+                  &pgm.gate_info.state, 1, false);
 
-  case RL_CONTROL: {
-    // Ligar cada rele conforme solicitado
-    if(pgm.run_rele[pgm.alarm_packet.data[0]].state == true){
-		XMC_GPIO_SetOutputHigh(rele_ports[pgm.alarm_packet.data[0]],
-                            rele_pins[pgm.alarm_packet.data[0]]);
-	}else if(pgm.run_rele[pgm.alarm_packet.data[0]].state == false){
-		XMC_GPIO_SetOutputLow(rele_ports[pgm.alarm_packet.data[0]],
-                            rele_pins[pgm.alarm_packet.data[0]]);
+    	estado_alarm = TRANSMIT;
 	}
     
-    if (pgm.run_rele[pgm.alarm_packet.data[0]].function == PGM_PULSED) {
-      pgm.run_rele[pgm.alarm_packet.data[0]].previous_state =
-          pgm.run_rele[pgm.alarm_packet.data[0]].state;
-      cont_rele[pgm.alarm_packet.data[0]] =
-          pgm.run_rele[pgm.alarm_packet.data[0]].time;
-    }
+
+  } break;
+
+  case RL_CONTROL: {
     
-    if (pgm.run_rele[pgm.alarm_packet.data[0]].function == PGM_RETENTION) {
-      pgm.run_rele[pgm.alarm_packet.data[0]].previous_state = pgm.run_rele[pgm.alarm_packet.data[0]].state;
-      cont_rele[pgm.alarm_packet.data[0]] = 1000 * (pgm.run_rele[pgm.alarm_packet.data[0]].time);
-    }
     //    rele_Control();
 
     buffer_size = 8;
@@ -826,64 +916,149 @@ void Control_alarm() {
 }
 
 void Control_gate() {
-
+  
   switch (estado_gate) {
   case RECEIVE: {
 
     if (gate_packet_completed) {
-      cadastrado = true;
-      numero_modulo = 1;
-      
+		gate_packet_completed = false;
+//      cadastrado = true;
+//      numero_modulo = 1;
+      gate_info_ready = true;
       if(pgm.gate_packet.function == 'H'){
-		if(pgm.gate_packet.data[5] == 0 || pgm.gate_packet.data[5] == 9){
-//			XMC_GPIO_SetOutputHigh(rele_ports[0], rele_pins[0]);
-//			XMC_GPIO_SetOutputHigh(rele_ports[1], rele_pins[1]);
-//			XMC_GPIO_SetOutputHigh(rele_ports[2], rele_pins[2]);
-//			XMC_GPIO_SetOutputHigh(rele_ports[3], rele_pins[3]);
-			XMC_Delay(5000);
-		}else{
-//			XMC_GPIO_SetOutputLow(rele_ports[0], rele_pins[0]);
-//			XMC_GPIO_SetOutputLow(rele_ports[1], rele_pins[1]);
-//			XMC_GPIO_SetOutputLow(rele_ports[2], rele_pins[2]);
-//			XMC_GPIO_SetOutputLow(rele_ports[3], rele_pins[3]);
+		pgm.gate_info.state = pgm.gate_packet.data[5];
+		
+		uint8_t preset = 2;
+		bool luz = (pgm.gate_packet.data[7]) & 1;
+		bool trava = (pgm.gate_packet.data[7] >> 1) & 1;
+		bool abre = (pgm.gate_packet.data[7] >> 2) & 1;
+		bool fecha = (pgm.gate_packet.data[7] >> 3) & 1;
+		bool foto_fecha = (pgm.gate_packet.data[7] >> 4) & 1;
+		bool foto_abre = (pgm.gate_packet.data[7] >> 5) & 1;
+		bool reed_abre = !((pgm.gate_packet.data[7] >> 6) & 1);
+		bool reed_fecha = !((pgm.gate_packet.data[7] >> 7) & 1);
+		bool bot = (pgm.gate_packet.data[6]) & 1;
+		
+		if(preset == 0){
+			if(foto_fecha){
+				XMC_GPIO_SetOutputHigh(rele_ports[0], rele_pins[0]);
+			}else{
+				XMC_GPIO_SetOutputLow(rele_ports[0], rele_pins[0]);
+			}
+			
+			if(foto_abre){
+				XMC_GPIO_SetOutputHigh(rele_ports[1], rele_pins[1]);
+			}else{
+				XMC_GPIO_SetOutputLow(rele_ports[1], rele_pins[1]);
+			}
+			
+			if(reed_fecha){
+				XMC_GPIO_SetOutputHigh(rele_ports[2], rele_pins[2]);
+			}else{
+				XMC_GPIO_SetOutputLow(rele_ports[2], rele_pins[2]);
+			}
+			
+			if(reed_abre){
+				XMC_GPIO_SetOutputHigh(rele_ports[3], rele_pins[3]);
+			}else{
+				XMC_GPIO_SetOutputLow(rele_ports[3], rele_pins[3]);
+			}
 		}
 		
-		if(pgm.gate_packet.data[5] == 1){
-			XMC_GPIO_SetOutputHigh(rele_ports[0], rele_pins[0]);
-		}else{
-			XMC_GPIO_SetOutputLow(rele_ports[0], rele_pins[0]);
+		if(preset == 1){
+			if(luz){
+				XMC_GPIO_SetOutputHigh(rele_ports[0], rele_pins[0]);
+			}else{
+				XMC_GPIO_SetOutputLow(rele_ports[0], rele_pins[0]);
+			}
+			
+			if(trava){
+				XMC_GPIO_SetOutputHigh(rele_ports[1], rele_pins[1]);
+			}else{
+				XMC_GPIO_SetOutputLow(rele_ports[1], rele_pins[1]);
+			}
+			
+			if(pgm.gate_info.state == ABERTO){
+				XMC_GPIO_SetOutputHigh(rele_ports[2], rele_pins[2]);
+			}else{
+				XMC_GPIO_SetOutputLow(rele_ports[2], rele_pins[2]);
+			}
+			
+			if(pgm.gate_info.state == FECHADO){
+				XMC_GPIO_SetOutputHigh(rele_ports[3], rele_pins[3]);
+			}else{
+				XMC_GPIO_SetOutputLow(rele_ports[3], rele_pins[3]);
+			}
 		}
 		
-		if(pgm.gate_packet.data[5] == 2){
-			XMC_GPIO_SetOutputHigh(rele_ports[1], rele_pins[1]);
-		}else{
-			XMC_GPIO_SetOutputLow(rele_ports[1], rele_pins[1]);
+		if(preset == 2){
+			if(pgm.gate_info.state == ABERTO){
+				rele_start(0, PGM_TOGGLE, true, 300);
+			}else{
+				rele_stop(0);
+			}
+			
+			if(pgm.gate_info.state == ABRINDO){
+				rele_start(1, PGM_PULSED, true, 300);
+			}else{
+				rele_stop(1);
+			}
+			
+			if(pgm.gate_info.state == FECHADO){
+				rele_start(2, PGM_TOGGLE, true, 300);
+			}else{
+				rele_stop(2);
+			}
+			
+			if(pgm.gate_info.state == FECHANDO){
+				rele_start(3, PGM_PULSED, true, 600);
+			}else{
+				rele_stop(3);
+			}
 		}
 		
-		if(pgm.gate_packet.data[5] == 3){
-			XMC_GPIO_SetOutputHigh(rele_ports[2], rele_pins[2]);
-		}else{
-			XMC_GPIO_SetOutputLow(rele_ports[2], rele_pins[2]);
-		}
-		
-		if(pgm.gate_packet.data[5] == 4){
-			XMC_GPIO_SetOutputHigh(rele_ports[3], rele_pins[3]);
-		}else{
-			XMC_GPIO_SetOutputLow(rele_ports[3], rele_pins[3]);
+		if(preset == 3){
+			if(!abre && !foto_fecha){
+				rele_start(0, PGM_GATE_DELAY, true, 5000);
+				rele_start(1, PGM_RETENTION, true, 5000);
+				rele_start(2, PGM_PULSED, true, 1000);
+				rele_start(3, PGM_TOGGLE, true, 0);
+			}else{
+				rele_stop(0);
+				rele_stop(1);
+				rele_stop(2);
+				rele_stop(3);
+			}
 		}
 		
 	  }
-      
-      estado_gate = TRANSMIT;
+	  
+//	  if(pgm.gate_packet.function == 'C')){
+//		
+//	  }
     }
-
+    
+    if(send_packet == true){
+    	estado_gate = TRANSMIT;
+	}
+	
   } break;
 
   case TRANSMIT: {
 	
-	buffer_size = 6;
-	montar_pacote(Buffer_TX, buffer_size, 0x02, 0x00,
-                  'H', 0x00, 0, true);
+	if(send_gate_cmd == true){
+		send_gate_cmd = false;
+		buffer_size = 10;
+		uint8_t data[4] = {pgm.gate_info.action,0,0,0};
+		montar_pacote(Buffer_TX, buffer_size, 0x02, 0x00,
+                  'C', data, 4, true);
+		
+	}else{
+		send_packet = false;
+		buffer_size = 6;
+		montar_pacote(Buffer_TX, buffer_size, 0x02, 0x00,
+                  'H', 0X00, 0, true);
+	}
 	
     delay_tx = systick + 15;
 
@@ -978,7 +1153,7 @@ int main(void) {
     rele_Control();
     receive_alarm_packet();
     Control_alarm();
-//    receive_gate_packet();
+    receive_gate_packet();
     Control_gate();
   }
 }

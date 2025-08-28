@@ -68,6 +68,9 @@ typedef enum {
   PGM_STATUS = 0x04,
   PGM_DELETE = 0x05,
   PGM_RETRY_CRC = 0x06,
+  PGM_GATE_STATUS = 0x07,
+  PGM_GATE_CMD = 0x08,
+  PGM_GATE_DELAY= 0x09,
 } PGM_FUNCTION_t;
 
 typedef enum {
@@ -78,6 +81,23 @@ typedef enum {
   PGM_PACKET_FAIL_CHECKSUM,
   PGM_PACKET_FAIL_UNKNOWN = 0xFF
 } pgm_packet_error_e;
+
+typedef enum{
+	ABERTO = 1,
+	ABRINDO,
+	FECHADO,
+	FECHANDO,
+	SEMIABERTO,
+	TRAVADO,
+	LENDO_ABRE,
+	LENDO_FECHA,
+	INICIAL,
+} gate_status_t;
+
+typedef struct{
+  uint8_t state;
+  uint8_t action;
+} pgm_gate_info_t;
 
 typedef struct {
   bool state;
@@ -134,6 +154,7 @@ uint8_t estado_alarm = 0;
 uint8_t estado_gate = 0;
 
 // Variáveis de tempo/delays
+uint16_t gate_packet_delay = 2000;
 uint8_t num_aleatorio = 200;
 uint16_t delay_aleatorio = 0;
 uint8_t Blinking_gap = 10;
@@ -146,10 +167,13 @@ volatile bool aguardando_envio = false;
 volatile bool piscando = false;
 uint16_t cont_rele[4] = {0, 0, 0, 0};
 bool time_rele_flag[4] = {0, 0, 0, 0};
+bool rele_started[4];
 
 bool new_state_rl[4];
 bool pulsing_rl[4];
-
+bool send_packet;
+bool gate_info_ready;
+bool send_gate_cmd;
 // União bitflag
 typedef union {
   uint8_t Byte;
@@ -186,6 +210,7 @@ typedef struct {
   pgm_gate_packet_t gate_packet;
   FLAG_Bits status_rele, ligar_rele;
   pgm_timebase_t run_rele[4];
+  pgm_gate_info_t gate_info;
 } pgm_t;
 
 
