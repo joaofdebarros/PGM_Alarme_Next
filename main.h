@@ -48,9 +48,9 @@ uint8_t buffer_size = 8;
 uint8_t package_size = 0;
 // Buffer de envio e recepção de dados
 uint8_t Rx_buffer[TAMANHO_BUFFER_ACK];
-uint8_t Rx_buffer_index = 0;
 uint8_t Buffer_TX[TAMANHO_BUFFER_ACK] = {0};
-
+uint8_t Rx_buffer_index_alarm = 0;
+uint8_t Rx_buffer_index_gate = 0;
 uint8_t Rx_buffer_gate[40];
 uint8_t Tx_buffer_gate[40];
 
@@ -63,14 +63,14 @@ typedef enum {
 typedef enum {
   PGM_REGISTER = 0x00,
   PGM_TOGGLE = 0x01,
-  PGM_PULSED = 0x02,
-  PGM_RETENTION = 0x03,
-  PGM_STATUS = 0x04,
-  PGM_DELETE = 0x05,
-  PGM_RETRY_CRC = 0x06,
-  PGM_GATE_STATUS = 0x07,
-  PGM_GATE_CMD = 0x08,
-  PGM_GATE_DELAY= 0x09,
+  PGM_DELAYED_TOGGLE= 0x02,
+  PGM_PULSED = 0x03,
+  PGM_RETENTION = 0x04,
+  PGM_STATUS = 0x05,
+  PGM_DELETE = 0x06,
+  PGM_RETRY_CRC = 0x07,
+  PGM_GATE_STATUS = 0x08,
+  PGM_GATE_CMD = 0x09,
 } PGM_FUNCTION_t;
 
 typedef enum {
@@ -134,6 +134,7 @@ volatile bool gate_packet_completed = false;
 volatile bool recebendo = false;
 volatile bool pacote_obsoleto = false;
 volatile bool cadastrado = false;
+volatile bool gate = false;
 bool new_alarm_packet = false;
 bool new_gate_packet = false;
 

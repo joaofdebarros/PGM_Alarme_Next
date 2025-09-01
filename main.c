@@ -25,13 +25,13 @@ pgm_packet_error_e pgm_alarm_packet_demount(uint8_t *datain, uint16_t len,
   memset(packet, 0, sizeof(pgm_alarm_packet_t));
 
   for (i = 0; i < PGM_PACKET_LENGTH_LEN; i++) {
-    packet->len += (datain[size++]);
+    packet->len = (datain[size++]);
   }
   lHold = (len - 7);
   checksum_validate ^= packet->len;
 
   for (i = 0; i < PGM_PACKET_ID_LEN; i++) {
-    packet->id += (datain[size++]);
+    packet->id = (datain[size++]);
   }
   checksum_validate ^= packet->id;
 
@@ -45,6 +45,10 @@ pgm_packet_error_e pgm_alarm_packet_demount(uint8_t *datain, uint16_t len,
   }
   checksum_validate ^= packet->function;
 
+  if (lHold > sizeof(packet->data)) {
+    return PGM_PACKET_FAIL_UNKNOWN;  // pacote inválido
+  }
+
   memcpy(packet->data, &datain[size], lHold);
   size += lHold;
 
@@ -53,12 +57,12 @@ pgm_packet_error_e pgm_alarm_packet_demount(uint8_t *datain, uint16_t len,
   }
 
   for (i = 0; i < PGM_PACKET_CHECKSUM_LEN; i++) {
-    packet->checksum += (datain[size++]);
+    packet->checksum = (datain[size++]);
   }
   checksum_validate = ~checksum_validate;
 
   for (i = 0; i < PGM_PACKET_TAIL_LEN; i++) {
-    packet->tail += (datain[size++]);
+    packet->tail = (datain[size++]);
   }
 
   if (packet->tail != 0x81) {
@@ -87,13 +91,13 @@ pgm_packet_error_e pgm_gate_packet_demount(uint8_t *datain, uint16_t len,
   memset(packet, 0, sizeof(pgm_gate_packet_t));
 
   for (i = 0; i < PGM_PACKET_LENGTH_LEN; i++) {
-    packet->len += (datain[size++]);
+    packet->len = (datain[size++]);
   }
   lHold = (len - 6);
   checksum_validate ^= packet->len;
 
   for (i = 0; i < PGM_PACKET_ID_LEN; i++) {
-    packet->id += (datain[size++]);
+    packet->id = (datain[size++]);
   }
   checksum_validate ^= packet->id;
 
@@ -102,6 +106,10 @@ pgm_packet_error_e pgm_gate_packet_demount(uint8_t *datain, uint16_t len,
   }
   checksum_validate ^= packet->function;
 
+  if (lHold > sizeof(packet->data)) {
+    return PGM_PACKET_FAIL_UNKNOWN;  // pacote inválido
+  }
+  
   memcpy(packet->data, &datain[size], lHold);
   size += lHold;
 
@@ -110,12 +118,12 @@ pgm_packet_error_e pgm_gate_packet_demount(uint8_t *datain, uint16_t len,
   }
 
   for (i = 0; i < PGM_PACKET_CHECKSUM_LEN; i++) {
-    packet->checksum += (datain[size++]);
+    packet->checksum = (datain[size++]);
   }
   checksum_validate = ~checksum_validate;
 
   for (i = 0; i < PGM_PACKET_TAIL_LEN; i++) {
-    packet->tail += (datain[size++]);
+    packet->tail = (datain[size++]);
   }
 
 //  if (packet->tail != 0x81) {
@@ -316,19 +324,19 @@ uint8_t montar_pacote(uint8_t *tx, uint8_t size, uint8_t id, uint8_t adrs,
 void receive_alarm_packet() {
   if (alarm_packet_completed == false && new_alarm_packet) {
     while (!XMC_USIC_CH_RXFIFO_IsEmpty(UART_Bus_HW)) {
-
+	  new_alarm_packet = false;
       uint8_t rx = XMC_UART_CH_GetReceivedData(UART_Bus_HW);
       if (!recebendo) {
         if (rx == start_byte) {
           recebendo = true;
-          Rx_buffer_index = 0;
+          Rx_buffer_index_alarm = 0;
         }
 
       } else {
 
-        if (rx == stop_byte && (Rx_buffer_index == Rx_buffer[0] - 2)) {
+        if (rx == stop_byte && (Rx_buffer_index_alarm == Rx_buffer[0] - 2)) {
           recebendo = false;
-          Rx_buffer[Rx_buffer_index] = rx;
+          Rx_buffer[Rx_buffer_index_alarm] = rx;
           pgm.pgm_error = pgm_alarm_packet_demount(Rx_buffer, Rx_buffer[0],
                                                    &pgm.alarm_packet);
 
@@ -338,25 +346,25 @@ void receive_alarm_packet() {
             alarm_packet_completed = true;
           } else {
             alarm_packet_completed = false;
-            Rx_buffer_index = 0;
+            Rx_buffer_index_alarm = 0;
           }
 
           break;
         } else {
-          if (Rx_buffer_index < 12) {
-            Rx_buffer[Rx_buffer_index++] = rx;
+          if (Rx_buffer_index_alarm < 12) {
+            Rx_buffer[Rx_buffer_index_alarm++] = rx;
           } else {
             recebendo = false;
-            Rx_buffer_index = 0;
+            Rx_buffer_index_alarm = 0;
           }
         }
       }
     }
 
-    if ((TAMANHO_BUFFER - Rx_buffer_index) < UART_Bus_RXFIFO_LIMIT) {
+    if ((TAMANHO_BUFFER - Rx_buffer_index_alarm) < UART_Bus_RXFIFO_LIMIT) {
       XMC_USIC_CH_RXFIFO_SetSizeTriggerLimit(
           UART_Bus_HW, XMC_USIC_CH_FIFO_SIZE_8WORDS,
-          (TAMANHO_BUFFER - Rx_buffer_index) - 1);
+          (TAMANHO_BUFFER - Rx_buffer_index_alarm) - 1);
     }
   }
 }
@@ -364,19 +372,19 @@ void receive_alarm_packet() {
 void receive_gate_packet() {
   if (gate_packet_completed == false && new_gate_packet) {
     while (!XMC_USIC_CH_RXFIFO_IsEmpty(UART_Prog_HW)) {
-
+	  new_gate_packet = false;
       uint8_t rx = XMC_UART_CH_GetReceivedData(UART_Prog_HW);
       if (!recebendo) {
         if (rx == start_byte) {
           recebendo = true;
-          Rx_buffer_index = 0;
+          Rx_buffer_index_gate = 0;
         }
 
       } else {
 
-        if (Rx_buffer_index == Rx_buffer_gate[0] - 2) {
+        if (Rx_buffer_index_gate == Rx_buffer_gate[0] - 2) {
           recebendo = false;
-          Rx_buffer_gate[Rx_buffer_index] = rx;
+          Rx_buffer_gate[Rx_buffer_index_gate] = rx;
           pgm.pgm_error = pgm_gate_packet_demount(Rx_buffer_gate, Rx_buffer_gate[0],
                                                    &pgm.gate_packet);
 
@@ -384,25 +392,25 @@ void receive_gate_packet() {
             gate_packet_completed = true;
           } else {
             gate_packet_completed = false;
-            Rx_buffer_index = 0;
+            Rx_buffer_index_gate = 0;
           }
 
           break;
         } else {
-          if (Rx_buffer_index < 40) {
-            Rx_buffer_gate[Rx_buffer_index++] = rx;
+          if (Rx_buffer_index_gate < 40) {
+            Rx_buffer_gate[Rx_buffer_index_gate++] = rx;
           } else {
             recebendo = false;
-            Rx_buffer_index = 0;
+            Rx_buffer_index_gate = 0;
           }
         }
       }
     }
 
-    if ((TAMANHO_BUFFER - Rx_buffer_index) < UART_Bus_RXFIFO_LIMIT) {
+    if ((TAMANHO_BUFFER - Rx_buffer_index_gate) < UART_Bus_RXFIFO_LIMIT) {
       XMC_USIC_CH_RXFIFO_SetSizeTriggerLimit(
           UART_Bus_HW, XMC_USIC_CH_FIFO_SIZE_8WORDS,
-          (TAMANHO_BUFFER - Rx_buffer_index) - 1);
+          (TAMANHO_BUFFER - Rx_buffer_index_gate) - 1);
     }
   }
 }
@@ -426,7 +434,11 @@ void SysTick_Handler(void) {
     if (cadastrado) {
       Blinking_gap = 200;
     } else {
-      Blinking_gap = 100;
+      if(gate){
+		Blinking_gap = 200;
+	  }else{
+		Blinking_gap = 100;	
+	  }
     }
 
     if (leds[0].piscando) {
@@ -466,7 +478,7 @@ void SysTick_Handler(void) {
       time_rele_flag[0] = true;
     }else if(pgm.run_rele[0].function == PGM_RETENTION){
 	  time_rele_flag[0] = true;
-	}else if(pgm.run_rele[0].function == PGM_GATE_DELAY){
+	}else if(pgm.run_rele[0].function == PGM_DELAYED_TOGGLE){
 	  time_rele_flag[0] = true;
 	}else {
 		time_rele_flag[0] = false;
@@ -481,7 +493,7 @@ void SysTick_Handler(void) {
       time_rele_flag[1] = true;
     }else if(pgm.run_rele[1].function == PGM_RETENTION){
 	  time_rele_flag[1] = true;
-	}else if(pgm.run_rele[1].function == PGM_GATE_DELAY){
+	}else if(pgm.run_rele[1].function == PGM_DELAYED_TOGGLE){
 	  time_rele_flag[1] = true;
 	}else{
 		time_rele_flag[1] = false;
@@ -496,7 +508,7 @@ void SysTick_Handler(void) {
       time_rele_flag[2] = true;
     }else if(pgm.run_rele[2].function == PGM_RETENTION){
 	  time_rele_flag[2] = true;
-	}else if(pgm.run_rele[2].function == PGM_GATE_DELAY){
+	}else if(pgm.run_rele[2].function == PGM_DELAYED_TOGGLE){
 	  time_rele_flag[2] = true;
 	}else{
 		time_rele_flag[2] = false;
@@ -511,7 +523,7 @@ void SysTick_Handler(void) {
       time_rele_flag[3] = true;
     }else if(pgm.run_rele[3].function == PGM_RETENTION){
 	  time_rele_flag[3] = true;
-	}else if(pgm.run_rele[3].function == PGM_GATE_DELAY){
+	}else if(pgm.run_rele[3].function == PGM_DELAYED_TOGGLE){
 	  time_rele_flag[3] = true;
 	}else{
 		time_rele_flag[3] = false;
@@ -546,7 +558,7 @@ void rele_Control() {
                               rele_pins[0]);
     }
     
-    if (pgm.run_rele[0].function == PGM_GATE_DELAY) {
+    if (pgm.run_rele[0].function == PGM_DELAYED_TOGGLE) {
       time_rele_flag[0] = false;
       XMC_GPIO_SetOutputHigh(rele_ports[0], rele_pins[0]);
     }
@@ -575,7 +587,7 @@ void rele_Control() {
                               rele_pins[1]);
     }
     
-    if (pgm.run_rele[1].function == PGM_GATE_DELAY) {
+    if (pgm.run_rele[1].function == PGM_DELAYED_TOGGLE) {
       time_rele_flag[1] = false;
       XMC_GPIO_SetOutputHigh(rele_ports[1], rele_pins[1]);
     }
@@ -604,7 +616,7 @@ void rele_Control() {
                               rele_pins[2]);
     }
     
-    if (pgm.run_rele[2].function == PGM_GATE_DELAY) {
+    if (pgm.run_rele[2].function == PGM_DELAYED_TOGGLE) {
       time_rele_flag[2] = false;
       XMC_GPIO_SetOutputHigh(rele_ports[2], rele_pins[2]);
     }
@@ -633,7 +645,7 @@ void rele_Control() {
                               rele_pins[3]);
     }
     
-    if (pgm.run_rele[3].function == PGM_GATE_DELAY) {
+    if (pgm.run_rele[3].function == PGM_DELAYED_TOGGLE) {
       time_rele_flag[3] = false;
       XMC_GPIO_SetOutputHigh(rele_ports[3], rele_pins[3]);
     }
@@ -649,44 +661,48 @@ void rele_stop(uint8_t rele_index){
 
 void rele_start(uint8_t rele_index, uint8_t function, uint8_t state, uint16_t time){
 	
-	if(!rele_started[rele_index]){
-		rele_started[rele_index] = true;
+	if(state == false){
+		rele_stop(rele_index);
+	}else{
+		if(!rele_started[rele_index]){
+			rele_started[rele_index] = true;
+			
+			pgm.run_rele[rele_index].function = function;
+		    pgm.run_rele[rele_index].state = state;
+		    pgm.run_rele[rele_index].time = time;
 		
-		pgm.run_rele[rele_index].function = function;
-	    pgm.run_rele[rele_index].state = state;
-	    pgm.run_rele[rele_index].time = time;
-	
-		// Ligar cada rele conforme solicitado
-		if (pgm.run_rele[rele_index].function == PGM_TOGGLE) {
-	      if(pgm.run_rele[rele_index].state == true){
+			// Ligar cada rele conforme solicitado
+			if (pgm.run_rele[rele_index].function == PGM_TOGGLE) {
+		      if(pgm.run_rele[rele_index].state == true){
+				  XMC_GPIO_SetOutputHigh(rele_ports[rele_index], rele_pins[rele_index]);
+			  }
+		    }
+		    
+		    if (pgm.run_rele[rele_index].function == PGM_PULSED) {
+		      pgm.run_rele[rele_index].previous_state = pgm.run_rele[rele_index].state;
+		      cont_rele[rele_index] = pgm.run_rele[rele_index].time;
+		      
+		      if(pgm.run_rele[rele_index].state == true){
+				  pulsing_rl[rele_index] = true;
+			  }else{
+				  pulsing_rl[rele_index] = false;
+			  }
+		    }
+		    
+		    if (pgm.run_rele[rele_index].function == PGM_RETENTION) {
 			  XMC_GPIO_SetOutputHigh(rele_ports[rele_index], rele_pins[rele_index]);
-		  }else if(pgm.run_rele[rele_index].state == false){
-			  XMC_GPIO_SetOutputLow(rele_ports[rele_index], rele_pins[rele_index]);
-		  }
-	    }
-	    
-	    if (pgm.run_rele[rele_index].function == PGM_PULSED) {
-	      pgm.run_rele[rele_index].previous_state = pgm.run_rele[rele_index].state;
-	      cont_rele[rele_index] = pgm.run_rele[rele_index].time;
-	      
-	      if(pgm.run_rele[rele_index].state == true){
-			  pulsing_rl[rele_index] = true;
-		  }else{
-			  pulsing_rl[rele_index] = false;
-		  }
-	    }
-	    
-	    if (pgm.run_rele[rele_index].function == PGM_RETENTION) {
-		  XMC_GPIO_SetOutputHigh(rele_ports[rele_index], rele_pins[rele_index]);
-	      pgm.run_rele[rele_index].previous_state = pgm.run_rele[rele_index].state;
-	      cont_rele[rele_index] = (pgm.run_rele[rele_index].time);
-	    }
-	    
-	    if(pgm.run_rele[rele_index].function == PGM_GATE_DELAY){
-			pgm.run_rele[rele_index].previous_state = false;
-	      	cont_rele[rele_index] = (pgm.run_rele[rele_index].time);
+		      pgm.run_rele[rele_index].previous_state = pgm.run_rele[rele_index].state;
+		      cont_rele[rele_index] = (pgm.run_rele[rele_index].time);
+		    }
+		    
+		    if(pgm.run_rele[rele_index].function == PGM_DELAYED_TOGGLE){
+				pgm.run_rele[rele_index].previous_state = false;
+		      	cont_rele[rele_index] = (pgm.run_rele[rele_index].time);
+			}
 		}
 	}
+	
+	
 	
 }
 
@@ -924,11 +940,12 @@ void Control_gate() {
 		gate_packet_completed = false;
 //      cadastrado = true;
 //      numero_modulo = 1;
+	  gate = true;
       gate_info_ready = true;
       if(pgm.gate_packet.function == 'H'){
 		pgm.gate_info.state = pgm.gate_packet.data[5];
 		
-		uint8_t preset = 2;
+		uint8_t preset = 1;
 		bool luz = (pgm.gate_packet.data[7]) & 1;
 		bool trava = (pgm.gate_packet.data[7] >> 1) & 1;
 		bool abre = (pgm.gate_packet.data[7] >> 2) & 1;
@@ -940,6 +957,7 @@ void Control_gate() {
 		bool bot = (pgm.gate_packet.data[6]) & 1;
 		
 		if(preset == 0){
+			// Status
 			if(foto_fecha){
 				XMC_GPIO_SetOutputHigh(rele_ports[0], rele_pins[0]);
 			}else{
@@ -966,25 +984,26 @@ void Control_gate() {
 		}
 		
 		if(preset == 1){
-			if(luz){
+			//Acessórios
+			if(pgm.gate_info.state == ABRINDO || pgm.gate_info.state == FECHANDO){
 				XMC_GPIO_SetOutputHigh(rele_ports[0], rele_pins[0]);
 			}else{
 				XMC_GPIO_SetOutputLow(rele_ports[0], rele_pins[0]);
 			}
 			
-			if(trava){
+			if(pgm.gate_info.state == ABRINDO || pgm.gate_info.state == ABERTO){
 				XMC_GPIO_SetOutputHigh(rele_ports[1], rele_pins[1]);
 			}else{
 				XMC_GPIO_SetOutputLow(rele_ports[1], rele_pins[1]);
 			}
 			
-			if(pgm.gate_info.state == ABERTO){
+			if(trava){
 				XMC_GPIO_SetOutputHigh(rele_ports[2], rele_pins[2]);
 			}else{
 				XMC_GPIO_SetOutputLow(rele_ports[2], rele_pins[2]);
 			}
 			
-			if(pgm.gate_info.state == FECHADO){
+			if(luz){
 				XMC_GPIO_SetOutputHigh(rele_ports[3], rele_pins[3]);
 			}else{
 				XMC_GPIO_SetOutputLow(rele_ports[3], rele_pins[3]);
@@ -999,7 +1018,7 @@ void Control_gate() {
 			}
 			
 			if(pgm.gate_info.state == ABRINDO){
-				rele_start(1, PGM_PULSED, true, 300);
+				rele_start(1, PGM_TOGGLE, true, 300);
 			}else{
 				rele_stop(1);
 			}
@@ -1011,7 +1030,7 @@ void Control_gate() {
 			}
 			
 			if(pgm.gate_info.state == FECHANDO){
-				rele_start(3, PGM_PULSED, true, 600);
+				rele_start(3, PGM_TOGGLE, true, 600);
 			}else{
 				rele_stop(3);
 			}
@@ -1019,10 +1038,10 @@ void Control_gate() {
 		
 		if(preset == 3){
 			if(!abre && !foto_fecha){
-				rele_start(0, PGM_GATE_DELAY, true, 5000);
-				rele_start(1, PGM_RETENTION, true, 5000);
-				rele_start(2, PGM_PULSED, true, 1000);
-				rele_start(3, PGM_TOGGLE, true, 0);
+				rele_start(0, PGM_DELAYED_TOGGLE, true, 1000);
+				rele_start(1, PGM_DELAYED_TOGGLE, true, 5000);
+				rele_start(2, PGM_DELAYED_TOGGLE, true, 10000);
+				rele_start(3, PGM_DELAYED_TOGGLE, true, 15000);
 			}else{
 				rele_stop(0);
 				rele_stop(1);
@@ -1134,10 +1153,10 @@ int main(void) {
   while (XMC_USIC_CH_TXFIFO_IsFull(UART_Bus_HW))
     ;
 
-  if ((TAMANHO_BUFFER - Rx_buffer_index) < UART_Bus_RXFIFO_LIMIT) {
+  if ((TAMANHO_BUFFER - Rx_buffer_index_alarm) < UART_Bus_RXFIFO_LIMIT) {
     XMC_USIC_CH_RXFIFO_SetSizeTriggerLimit(
         UART_Bus_HW, XMC_USIC_CH_FIFO_SIZE_8WORDS,
-        (TAMANHO_BUFFER - Rx_buffer_index) - 1);
+        (TAMANHO_BUFFER - Rx_buffer_index_alarm) - 1);
   }
 
   XMC_GPIO_SetOutputHigh(Bus_Controle_PORT, Bus_Controle_PIN);
