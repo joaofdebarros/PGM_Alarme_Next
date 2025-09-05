@@ -30,6 +30,16 @@
 #define DATA 4
 #define CHECKSUM 5
 
+#define RECEIVE 0
+#define GET_UID 1
+#define STATUS_RL 2
+#define GATE_STATUS 3
+#define RL_CONTROL 4
+#define DELETE 5
+#define TRANSMIT 6
+#define DELAY_ENVIO 7
+#define LIMPAR 8
+
 #define PGM_PACKET_HEADER_LEN 1
 #define PGM_PACKET_LENGTH_LEN 1
 #define PGM_PACKET_ID_LEN 1
@@ -135,6 +145,8 @@ volatile bool recebendo = false;
 volatile bool pacote_obsoleto = false;
 volatile bool cadastrado = false;
 volatile bool gate = false;
+volatile bool prog_connected = false;
+volatile bool ppaon_connected = false;
 bool new_alarm_packet = false;
 bool new_gate_packet = false;
 
@@ -152,10 +164,10 @@ volatile bool checksum_ok = false;
 
 // Máquina de estado_alarms
 uint8_t estado_alarm = 0;
-uint8_t estado_gate = 0;
+uint8_t estado_gate = TRANSMIT;
 
 // Variáveis de tempo/delays
-uint16_t gate_packet_delay = 2000;
+uint16_t gate_packet_delay = 3000;
 uint8_t num_aleatorio = 200;
 uint16_t delay_aleatorio = 0;
 uint8_t Blinking_gap = 10;

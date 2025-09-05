@@ -1,0 +1,5 @@
+HOSTNAME=ped-joao
+PID=22944
+PIPE=\\.\PIPE\8df52264-2f2e-4d36-800f-18ad378e1b15
+LIBRARIES=C:/Users/joao.victor/.modustoolbox/global/device-db/latest-v4.X/props.json;C:/Users/joao.victor/mtw/mtb_shared/mtb-xmclib-cat3/latest-v4.X/props.json;
+USERNAME=joao.victor

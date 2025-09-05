@@ -169,14 +169,44 @@ void reset_uart() {
   XMC_GPIO_SetHardwareControl(Bus_TX_PORT, Bus_TX_PIN, Bus_TX_HWO);
 }
 
+void reset_gate_uart() {
+ XMC_UART_CH_InitEx(UART_Prog_HW, &UART_Prog_config, false);
+    XMC_UART_CH_SetInputSource(UART_Prog_HW, (XMC_UART_CH_INPUT_t)XMC_USIC_CH_INPUT_DX0, UART_Prog_DX0_INPUT);
+    XMC_UART_CH_SetSamplePoint(UART_Prog_HW, 8U);
+    XMC_USIC_CH_SetFractionalDivider(UART_Prog_HW, XMC_USIC_CH_BRG_CLOCK_DIVIDER_MODE_FRACTIONAL, 289U);
+    XMC_USIC_CH_SetBaudrateDivider(UART_Prog_HW, XMC_USIC_CH_BRG_CLOCK_SOURCE_DIVIDER, false, 58U, XMC_USIC_CH_BRG_CTQSEL_PDIV, 0U, 15U);
+    XMC_USIC_CH_RXFIFO_Configure(UART_Prog_HW, UART_Prog_RXFIFO_DPTR, UART_Prog_RXFIFO_SIZE, UART_Prog_RXFIFO_LIMIT);
+    XMC_USIC_CH_TXFIFO_Configure(UART_Prog_HW, UART_Prog_TXFIFO_DPTR, UART_Prog_TXFIFO_SIZE, UART_Prog_TXFIFO_LIMIT);
+    XMC_USIC_CH_SetInterruptNodePointer(UART_Prog_HW, XMC_USIC_CH_INTERRUPT_NODE_POINTER_RECEIVE, 2U);
+    XMC_USIC_CH_TXFIFO_SetInterruptNodePointer(UART_Prog_HW, XMC_USIC_CH_TXFIFO_INTERRUPT_NODE_POINTER_STANDARD, 3U);
+    XMC_USIC_CH_RXFIFO_SetInterruptNodePointer(UART_Prog_HW, XMC_USIC_CH_RXFIFO_INTERRUPT_NODE_POINTER_STANDARD, 2U);
+    XMC_UART_CH_EnableEvent(UART_Prog_HW, XMC_UART_CH_EVENT_STANDARD_RECEIVE);
+    XMC_USIC_CH_TXFIFO_EnableEvent(UART_Prog_HW, (uint32_t)XMC_USIC_CH_TXFIFO_EVENT_CONF_STANDARD);
+    XMC_USIC_CH_RXFIFO_EnableEvent(UART_Prog_HW, (uint32_t)XMC_USIC_CH_RXFIFO_EVENT_CONF_STANDARD);
+    XMC_UART_CH_Start(UART_Prog_HW);
+
+  XMC_GPIO_Init(PROG_TX_PORT, PROG_TX_PIN, &PROG_TX_config);
+  XMC_GPIO_SetHardwareControl(PROG_TX_PORT, PROG_TX_PIN, PROG_TX_HWO);
+}
+
 void switch_to_gpio() {
   XMC_GPIO_SetMode(Bus_TX_PORT, Bus_TX_PIN, XMC_GPIO_MODE_OUTPUT_PUSH_PULL);
   XMC_GPIO_SetOutputLow(Bus_TX_PORT, Bus_TX_PIN);
 }
 
+void switch_gate_to_gpio() {
+  XMC_GPIO_SetMode(PROG_TX_PORT, PROG_TX_PIN, XMC_GPIO_MODE_OUTPUT_PUSH_PULL);
+  XMC_GPIO_SetOutputLow(PROG_TX_PORT, PROG_TX_PIN);
+}
+
 void switch_to_uart() {
   XMC_GPIO_SetMode(Bus_TX_PORT, Bus_TX_PIN, XMC_GPIO_MODE_OUTPUT_ALT2);
   reset_uart();
+}
+
+void switch_gate_to_uart() {
+  XMC_GPIO_SetMode(PROG_TX_PORT, PROG_TX_PIN, XMC_GPIO_MODE_OUTPUT_ALT2);
+  reset_gate_uart();
 }
 
 uint8_t calculate_checksum(uint8_t *buffer, uint8_t payload_size,
@@ -719,16 +749,6 @@ void USIC0_2_IRQHandler(void) {
 // Máquina de estado_alarms
 void Control_alarm() {
 
-#define RECEIVE 0
-#define GET_UID 1
-#define STATUS_RL 2
-#define GATE_STATUS 3
-#define RL_CONTROL 4
-#define DELETE 5
-#define TRANSMIT 6
-#define DELAY_ENVIO 7
-#define LIMPAR 8
-
   switch (estado_alarm) {
   case RECEIVE: {
 
@@ -942,122 +962,127 @@ void Control_gate() {
 //      numero_modulo = 1;
 	  gate = true;
       gate_info_ready = true;
-      if(pgm.gate_packet.function == 'H'){
-		pgm.gate_info.state = pgm.gate_packet.data[5];
-		
-		uint8_t preset = 1;
-		bool luz = (pgm.gate_packet.data[7]) & 1;
-		bool trava = (pgm.gate_packet.data[7] >> 1) & 1;
-		bool abre = (pgm.gate_packet.data[7] >> 2) & 1;
-		bool fecha = (pgm.gate_packet.data[7] >> 3) & 1;
-		bool foto_fecha = (pgm.gate_packet.data[7] >> 4) & 1;
-		bool foto_abre = (pgm.gate_packet.data[7] >> 5) & 1;
-		bool reed_abre = !((pgm.gate_packet.data[7] >> 6) & 1);
-		bool reed_fecha = !((pgm.gate_packet.data[7] >> 7) & 1);
-		bool bot = (pgm.gate_packet.data[6]) & 1;
-		
-		if(preset == 0){
-			// Status
-			if(foto_fecha){
-				XMC_GPIO_SetOutputHigh(rele_ports[0], rele_pins[0]);
-			}else{
-				XMC_GPIO_SetOutputLow(rele_ports[0], rele_pins[0]);
+      
+      if(pgm.gate_packet.id == 1 && pgm.gate_packet.len != 38){
+		prog_connected = true;
+	  }else if(pgm.gate_packet.id == 2){
+		if(pgm.gate_packet.function == 'H'){
+			pgm.gate_info.state = pgm.gate_packet.data[5];
+			
+			uint8_t preset = 1;
+			bool luz = (pgm.gate_packet.data[7]) & 1;
+			bool trava = (pgm.gate_packet.data[7] >> 1) & 1;
+			bool abre = (pgm.gate_packet.data[7] >> 2) & 1;
+			bool fecha = (pgm.gate_packet.data[7] >> 3) & 1;
+			bool foto_fecha = (pgm.gate_packet.data[7] >> 4) & 1;
+			bool foto_abre = (pgm.gate_packet.data[7] >> 5) & 1;
+			bool reed_abre = !((pgm.gate_packet.data[7] >> 6) & 1);
+			bool reed_fecha = !((pgm.gate_packet.data[7] >> 7) & 1);
+			bool bot = (pgm.gate_packet.data[6]) & 1;
+			
+			if(preset == 0){
+				// Status
+				if(foto_fecha){
+					XMC_GPIO_SetOutputHigh(rele_ports[0], rele_pins[0]);
+				}else{
+					XMC_GPIO_SetOutputLow(rele_ports[0], rele_pins[0]);
+				}
+				
+				if(foto_abre){
+					XMC_GPIO_SetOutputHigh(rele_ports[1], rele_pins[1]);
+				}else{
+					XMC_GPIO_SetOutputLow(rele_ports[1], rele_pins[1]);
+				}
+				
+				if(reed_fecha){
+					XMC_GPIO_SetOutputHigh(rele_ports[2], rele_pins[2]);
+				}else{
+					XMC_GPIO_SetOutputLow(rele_ports[2], rele_pins[2]);
+				}
+				
+				if(reed_abre){
+					XMC_GPIO_SetOutputHigh(rele_ports[3], rele_pins[3]);
+				}else{
+					XMC_GPIO_SetOutputLow(rele_ports[3], rele_pins[3]);
+				}
 			}
 			
-			if(foto_abre){
-				XMC_GPIO_SetOutputHigh(rele_ports[1], rele_pins[1]);
-			}else{
-				XMC_GPIO_SetOutputLow(rele_ports[1], rele_pins[1]);
+			if(preset == 1){
+				//Acessórios
+				if(pgm.gate_info.state == ABRINDO || pgm.gate_info.state == FECHANDO){
+					XMC_GPIO_SetOutputHigh(rele_ports[0], rele_pins[0]);
+				}else{
+					XMC_GPIO_SetOutputLow(rele_ports[0], rele_pins[0]);
+				}
+				
+				if(pgm.gate_info.state == ABRINDO || pgm.gate_info.state == ABERTO){
+					XMC_GPIO_SetOutputHigh(rele_ports[1], rele_pins[1]);
+				}else{
+					XMC_GPIO_SetOutputLow(rele_ports[1], rele_pins[1]);
+				}
+				
+				if(trava){
+					XMC_GPIO_SetOutputHigh(rele_ports[2], rele_pins[2]);
+				}else{
+					XMC_GPIO_SetOutputLow(rele_ports[2], rele_pins[2]);
+				}
+				
+				if(luz){
+					XMC_GPIO_SetOutputHigh(rele_ports[3], rele_pins[3]);
+				}else{
+					XMC_GPIO_SetOutputLow(rele_ports[3], rele_pins[3]);
+				}
 			}
 			
-			if(reed_fecha){
-				XMC_GPIO_SetOutputHigh(rele_ports[2], rele_pins[2]);
-			}else{
-				XMC_GPIO_SetOutputLow(rele_ports[2], rele_pins[2]);
+			if(preset == 2){
+				if(pgm.gate_info.state == ABERTO){
+					rele_start(0, PGM_TOGGLE, true, 300);
+				}else{
+					rele_stop(0);
+				}
+				
+				if(pgm.gate_info.state == ABRINDO){
+					rele_start(1, PGM_TOGGLE, true, 300);
+				}else{
+					rele_stop(1);
+				}
+				
+				if(pgm.gate_info.state == FECHADO){
+					rele_start(2, PGM_TOGGLE, true, 300);
+				}else{
+					rele_stop(2);
+				}
+				
+				if(pgm.gate_info.state == FECHANDO){
+					rele_start(3, PGM_TOGGLE, true, 600);
+				}else{
+					rele_stop(3);
+				}
 			}
 			
-			if(reed_abre){
-				XMC_GPIO_SetOutputHigh(rele_ports[3], rele_pins[3]);
-			}else{
-				XMC_GPIO_SetOutputLow(rele_ports[3], rele_pins[3]);
-			}
-		}
-		
-		if(preset == 1){
-			//Acessórios
-			if(pgm.gate_info.state == ABRINDO || pgm.gate_info.state == FECHANDO){
-				XMC_GPIO_SetOutputHigh(rele_ports[0], rele_pins[0]);
-			}else{
-				XMC_GPIO_SetOutputLow(rele_ports[0], rele_pins[0]);
-			}
-			
-			if(pgm.gate_info.state == ABRINDO || pgm.gate_info.state == ABERTO){
-				XMC_GPIO_SetOutputHigh(rele_ports[1], rele_pins[1]);
-			}else{
-				XMC_GPIO_SetOutputLow(rele_ports[1], rele_pins[1]);
+			if(preset == 3){
+				if(!abre && !foto_fecha){
+					rele_start(0, PGM_DELAYED_TOGGLE, true, 1000);
+					rele_start(1, PGM_DELAYED_TOGGLE, true, 5000);
+					rele_start(2, PGM_DELAYED_TOGGLE, true, 10000);
+					rele_start(3, PGM_DELAYED_TOGGLE, true, 15000);
+				}else{
+					rele_stop(0);
+					rele_stop(1);
+					rele_stop(2);
+					rele_stop(3);
+				}
 			}
 			
-			if(trava){
-				XMC_GPIO_SetOutputHigh(rele_ports[2], rele_pins[2]);
-			}else{
-				XMC_GPIO_SetOutputLow(rele_ports[2], rele_pins[2]);
-			}
-			
-			if(luz){
-				XMC_GPIO_SetOutputHigh(rele_ports[3], rele_pins[3]);
-			}else{
-				XMC_GPIO_SetOutputLow(rele_ports[3], rele_pins[3]);
-			}
-		}
-		
-		if(preset == 2){
-			if(pgm.gate_info.state == ABERTO){
-				rele_start(0, PGM_TOGGLE, true, 300);
-			}else{
-				rele_stop(0);
-			}
-			
-			if(pgm.gate_info.state == ABRINDO){
-				rele_start(1, PGM_TOGGLE, true, 300);
-			}else{
-				rele_stop(1);
-			}
-			
-			if(pgm.gate_info.state == FECHADO){
-				rele_start(2, PGM_TOGGLE, true, 300);
-			}else{
-				rele_stop(2);
-			}
-			
-			if(pgm.gate_info.state == FECHANDO){
-				rele_start(3, PGM_TOGGLE, true, 600);
-			}else{
-				rele_stop(3);
-			}
-		}
-		
-		if(preset == 3){
-			if(!abre && !foto_fecha){
-				rele_start(0, PGM_DELAYED_TOGGLE, true, 1000);
-				rele_start(1, PGM_DELAYED_TOGGLE, true, 5000);
-				rele_start(2, PGM_DELAYED_TOGGLE, true, 10000);
-				rele_start(3, PGM_DELAYED_TOGGLE, true, 15000);
-			}else{
-				rele_stop(0);
-				rele_stop(1);
-				rele_stop(2);
-				rele_stop(3);
-			}
-		}
-		
+		  }
+	  }else if(pgm.gate_packet.id == 3){
+		ppaon_connected = true;
 	  }
+      
 	  
-//	  if(pgm.gate_packet.function == 'C')){
-//		
-//	  }
     }
-    
-    if(send_packet == true){
+    //REMOVIDO PARA TESTE: && !prog_connected
+    if(send_packet == true && !ppaon_connected){
     	estado_gate = TRANSMIT;
 	}
 	
@@ -1088,14 +1113,16 @@ void Control_gate() {
 
   case DELAY_ENVIO: {
     if (systick >= delay_tx) {
+	  switch_gate_to_uart();
       XMC_Delay(1);
       for (int i = 0; i < buffer_size; i++) {
         XMC_UART_CH_Transmit(UART_Prog_HW, Buffer_TX[i]);
       }
       while (!XMC_USIC_CH_TXFIFO_IsEmpty(UART_Prog_HW))
         ;
-
-      XMC_Delay(10);
+	
+      XMC_Delay(2);
+      switch_gate_to_gpio();
 
       pacote_obsoleto = true;
       aguardando_envio = false;
@@ -1132,7 +1159,7 @@ int main(void) {
   if (result != CY_RSLT_SUCCESS) {
     CY_ASSERT(0);
   }
-
+  
   SysTick_Config(SystemCoreClock / 1000);
 
   NVIC_EnableIRQ(USIC0_1_IRQn);
@@ -1149,6 +1176,7 @@ int main(void) {
   XMC_UART_CH_EnableInputInversion(UART_Prog_HW,
                                    (XMC_UART_CH_INPUT_t)XMC_USIC_CH_INPUT_DX0);
   switch_to_gpio();
+  switch_gate_to_gpio();
 
   while (XMC_USIC_CH_TXFIFO_IsFull(UART_Bus_HW))
     ;
