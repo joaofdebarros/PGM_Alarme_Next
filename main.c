@@ -419,6 +419,14 @@ void receive_gate_packet() {
                                                    &pgm.gate_packet);
 
           if (pgm.pgm_error == PGM_PACKET_OK) {
+
+			if((systick - last_packet) > 650){
+				channel_free = true;
+			}else if((systick - last_packet) <= 650 && !currently_sending){
+				channel_free = false;
+			}
+			
+			last_packet = systick;
             gate_packet_completed = true;
           } else {
             gate_packet_completed = false;
@@ -456,6 +464,7 @@ void blink_led_ST(uint8_t n) {
 void SysTick_Handler(void) {
 
   if (--num_aleatorio == 0) {
+	currently_sending = false;
     num_aleatorio = 200;
   }
 
@@ -499,7 +508,7 @@ void SysTick_Handler(void) {
   
   if(--gate_packet_delay == 0){
 	send_packet = true;
-	gate_packet_delay = 1000;
+	gate_packet_delay = 700;
   }
 
   if (--cont_rele[0] == 0) {
@@ -1082,7 +1091,8 @@ void Control_gate() {
 	  
     }
     //REMOVIDO PARA TESTE: && !prog_connected
-    if(send_packet == true && !ppaon_connected){
+    if(send_packet == true && channel_free){
+		currently_sending = true;
     	estado_gate = TRANSMIT;
 	}
 	
@@ -1113,7 +1123,7 @@ void Control_gate() {
 
   case DELAY_ENVIO: {
     if (systick >= delay_tx) {
-	  switch_gate_to_uart();
+//	  switch_gate_to_uart();
       XMC_Delay(1);
       for (int i = 0; i < buffer_size; i++) {
         XMC_UART_CH_Transmit(UART_Prog_HW, Buffer_TX[i]);
@@ -1122,7 +1132,7 @@ void Control_gate() {
         ;
 	
       XMC_Delay(2);
-      switch_gate_to_gpio();
+//      switch_gate_to_gpio();
 
       pacote_obsoleto = true;
       aguardando_envio = false;
@@ -1173,11 +1183,9 @@ int main(void) {
   //  UART_Bus_HW->SCTR = (UART_Bus_HW->SCTR & ~(0X3 << 6)) | (0X1 << 6);
   XMC_UART_CH_EnableInputInversion(UART_Bus_HW,
                                    (XMC_UART_CH_INPUT_t)XMC_USIC_CH_INPUT_DX0);
-  XMC_UART_CH_EnableInputInversion(UART_Prog_HW,
-                                   (XMC_UART_CH_INPUT_t)XMC_USIC_CH_INPUT_DX0);
+//  XMC_UART_CH_EnableInputInversion(UART_Prog_HW, (XMC_UART_CH_INPUT_t)XMC_USIC_CH_INPUT_DX0);
   switch_to_gpio();
-  switch_gate_to_gpio();
-
+//  switch_gate_to_gpio();
   while (XMC_USIC_CH_TXFIFO_IsFull(UART_Bus_HW))
     ;
 

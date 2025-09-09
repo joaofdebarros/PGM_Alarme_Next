@@ -147,6 +147,8 @@ volatile bool cadastrado = false;
 volatile bool gate = false;
 volatile bool prog_connected = false;
 volatile bool ppaon_connected = false;
+volatile bool channel_free = false;
+volatile bool currently_sending = false;
 bool new_alarm_packet = false;
 bool new_gate_packet = false;
 
@@ -175,6 +177,7 @@ uint16_t Blink_wait = 1000;
 uint8_t piscadas = 0;
 uint8_t numero_modulo = 0;
 volatile uint32_t systick = 0;
+volatile uint32_t last_packet = 0;
 volatile uint32_t delay_tx = 0;
 volatile bool aguardando_envio = false;
 volatile bool piscando = false;
