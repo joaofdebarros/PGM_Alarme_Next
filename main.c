@@ -6,6 +6,7 @@
  */
 
 #include "main.h"
+#include "cycfg_pins.h"
 #include "xmc_common.h"
 #include "xmc_gpio.h"
 #include <stdint.h>
@@ -420,9 +421,9 @@ void receive_gate_packet() {
 
           if (pgm.pgm_error == PGM_PACKET_OK) {
 
-			if((systick - last_packet) > 650){
+			if((systick - last_packet) > 550){
 				channel_free = true;
-			}else if((systick - last_packet) <= 650 && !currently_sending){
+			}else if((systick - last_packet) <= 550 && !currently_sending){
 				channel_free = false;
 			}
 			
@@ -462,7 +463,66 @@ void blink_led_ST(uint8_t n) {
 
 // Rotina para controle dos tempos
 void SysTick_Handler(void) {
+	
+  bool bot_input = !XMC_GPIO_GetInput(LED_ST_PORT, LED_ST_PIN);
+  bool abre_input = 0;
+  bool fecha_input = 0;
+  
+  static bool last_bot_input = false;
+  static uint32_t bot_input_time = 0;
+  
+  static bool last_abre_input = false;
+  static uint32_t abre_input_time = 0;
+  
+  static bool last_fecha_input = false;
+  static uint32_t fecha_input_time = 0;
+  
+  /* Debounce Botoeira*/
+  if(bot_input && !last_bot_input){
+	last_bot_input = true;
+	bot_input_time = systick + 50;
+  }else if(bot_input && last_bot_input){
+	last_bot_input = true;
+  }else{
+	last_bot_input = false;
+  }
+ 
+  if((bot_input_time - systick) == 0 && last_bot_input == true){
+	send_gate_cmd = true;
+	cmd_botoeira = true;
+  }
+  
+  /* Debounce Botoeira Abertura*/
+  if(abre_input && !last_abre_input){
+	last_abre_input = true;
+	abre_input_time = systick + 50;
+  }else if(abre_input && last_abre_input){
+	last_abre_input = true;
+  }else{
+	last_abre_input = false;
+  }
+ 
+  if((abre_input_time - systick) == 0 && last_abre_input == true){
+	send_gate_cmd = true;
+	cmd_abre = true;
+  }
+  
+  /* Debounce Botoeira Fechamento*/
+  if(fecha_input && !last_fecha_input){
+	last_fecha_input = true;
+	fecha_input_time = systick + 50;
+  }else if(fecha_input && last_fecha_input){
+	last_fecha_input = true;
+  }else{
+	last_fecha_input = false;
+  }
+ 
+  if((fecha_input_time - systick) == 0 && last_fecha_input == true){
+	send_gate_cmd = true;
+	cmd_fecha = true;
+  }
 
+  /*---------------------------------------------------------------------*/
   if (--num_aleatorio == 0) {
 	currently_sending = false;
     num_aleatorio = 200;
@@ -508,7 +568,7 @@ void SysTick_Handler(void) {
   
   if(--gate_packet_delay == 0){
 	send_packet = true;
-	gate_packet_delay = 700;
+	gate_packet_delay = 600;
   }
 
   if (--cont_rele[0] == 0) {
@@ -831,7 +891,7 @@ void Control_alarm() {
 	  } else if(pgm.alarm_packet.function == PGM_GATE_CMD && pgm.alarm_packet.address == crc_address){
 		pgm.gate_info.action = pgm.alarm_packet.data[0];
 		send_gate_cmd = true;
-		
+		cmd_alarm = true;
 		buffer_size = 8;
     	montar_pacote(Buffer_TX, buffer_size, PGM_ID_RESPONSE, crc_address,
                   PGM_GATE_CMD, &ACK, 1, false);
@@ -1018,28 +1078,33 @@ void Control_gate() {
 			
 			if(preset == 1){
 				//Acessórios
+				
+				//SINALEIRA
 				if(pgm.gate_info.state == ABRINDO || pgm.gate_info.state == FECHANDO){
-					XMC_GPIO_SetOutputHigh(rele_ports[0], rele_pins[0]);
+					rele_start(0, PGM_TOGGLE, true, 0);
 				}else{
-					XMC_GPIO_SetOutputLow(rele_ports[0], rele_pins[0]);
+					rele_stop(0);
 				}
 				
+				//SEMÁFORO
 				if(pgm.gate_info.state == ABRINDO || pgm.gate_info.state == ABERTO){
-					XMC_GPIO_SetOutputHigh(rele_ports[1], rele_pins[1]);
+					rele_start(1, PGM_TOGGLE, true, 0);
 				}else{
-					XMC_GPIO_SetOutputLow(rele_ports[1], rele_pins[1]);
+					rele_stop(1);
 				}
 				
-				if(trava){
-					XMC_GPIO_SetOutputHigh(rele_ports[2], rele_pins[2]);
+				//FOTOCELULA FECHAMENTO
+				if(!foto_fecha){
+					rele_start(2, PGM_TOGGLE, true, 0);
 				}else{
-					XMC_GPIO_SetOutputLow(rele_ports[2], rele_pins[2]);
+					rele_stop(2);
 				}
 				
+				//LUZ DE GARAGEM
 				if(luz){
-					XMC_GPIO_SetOutputHigh(rele_ports[3], rele_pins[3]);
+					rele_start(3, PGM_TOGGLE, true, 0);
 				}else{
-					XMC_GPIO_SetOutputLow(rele_ports[3], rele_pins[3]);
+					rele_stop(3);
 				}
 			}
 			
@@ -1090,8 +1155,8 @@ void Control_gate() {
       
 	  
     }
-    //REMOVIDO PARA TESTE: && !prog_connected
-    if(send_packet == true && channel_free){
+    
+    if((send_packet == true && channel_free) || (cmd_botoeira) || (cmd_abre) || (cmd_fecha)){
 		currently_sending = true;
     	estado_gate = TRANSMIT;
 	}
@@ -1102,10 +1167,29 @@ void Control_gate() {
 	
 	if(send_gate_cmd == true){
 		send_gate_cmd = false;
-		buffer_size = 10;
-		uint8_t data[4] = {pgm.gate_info.action,0,0,0};
-		montar_pacote(Buffer_TX, buffer_size, 0x02, 0x00,
+		if(cmd_botoeira){
+			cmd_botoeira = false;
+			buffer_size = 10;
+			uint8_t data[4] = {ACIONARMOTOR,0,0,0};
+			montar_pacote(Buffer_TX, buffer_size, 0x02, 0x00,'C', data, 4, true);
+		}else if(cmd_abre){
+			cmd_abre = false;
+			buffer_size = 10;
+			uint8_t data[4] = {ABRIR,0,0,0};
+			montar_pacote(Buffer_TX, buffer_size, 0x02, 0x00,'C', data, 4, true);
+		}else if(cmd_fecha){
+			cmd_fecha = false;
+			buffer_size = 10;
+			uint8_t data[4] = {FECHAR,0,0,0};
+			montar_pacote(Buffer_TX, buffer_size, 0x02, 0x00,'C', data, 4, true);
+		}else if(cmd_alarm){
+			cmd_alarm = false;
+			buffer_size = 10;
+			uint8_t data[4] = {pgm.gate_info.action,0,0,0};
+			montar_pacote(Buffer_TX, buffer_size, 0x02, 0x00,
                   'C', data, 4, true);
+		}
+		
 		
 	}else{
 		send_packet = false;

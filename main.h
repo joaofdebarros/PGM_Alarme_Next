@@ -104,6 +104,14 @@ typedef enum{
 	INICIAL,
 } gate_status_t;
 
+typedef enum{
+	ABRIR = 1,
+	FECHAR,
+	TRAVAR,
+	PARAR,
+	ACIONARMOTOR = 12,
+} gate_cmd_t;
+
 typedef struct{
   uint8_t state;
   uint8_t action;
@@ -190,6 +198,12 @@ bool pulsing_rl[4];
 bool send_packet;
 bool gate_info_ready;
 bool send_gate_cmd;
+
+bool cmd_alarm;
+bool cmd_botoeira;
+bool cmd_abre;
+bool cmd_fecha;
+
 // União bitflag
 typedef union {
   uint8_t Byte;
