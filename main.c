@@ -768,7 +768,12 @@ void rele_start(uint8_t rele_index, uint8_t function, uint8_t state, uint16_t ti
 			
 			pgm.run_rele[rele_index].function = function;
 		    pgm.run_rele[rele_index].state = state;
-		    pgm.run_rele[rele_index].time = time;
+		    if(function == PGM_PULSED || function == PGM_DELAYED_TOGGLE){
+				pgm.run_rele[rele_index].time = time;
+			}else{
+				pgm.run_rele[rele_index].time = 1000 * time;
+			}
+		    
 		
 			// Ligar cada rele conforme solicitado
 			if (pgm.run_rele[rele_index].function == PGM_TOGGLE) {
