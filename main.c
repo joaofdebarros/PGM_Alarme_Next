@@ -777,20 +777,23 @@ void rele_start(uint8_t rele_index, uint8_t function, uint8_t state, uint16_t ti
 			
 			pgm.run_rele[rele_index].function = function;
 		    pgm.run_rele[rele_index].state = state;
-		    if(function == PGM_PULSED || function == PGM_DELAYED_TOGGLE){
+		    
+		    //Armazena o tempo que foi enviado
+		    if(function == PGM_PULSED){
 				pgm.run_rele[rele_index].time = time;
 			}else{
 				pgm.run_rele[rele_index].time = 1000 * time;
 			}
 		    
 		
-			// Ligar cada rele conforme solicitado
+			// Função TOGGLE
 			if (pgm.run_rele[rele_index].function == PGM_TOGGLE) {
 		      if(pgm.run_rele[rele_index].state == true){
 				  XMC_GPIO_SetOutputHigh(rele_ports[rele_index], rele_pins[rele_index]);
 			  }
 		    }
 		    
+		    // Função PULSED
 		    if (pgm.run_rele[rele_index].function == PGM_PULSED) {
 		      pgm.run_rele[rele_index].previous_state = pgm.run_rele[rele_index].state;
 		      cont_rele[rele_index] = pgm.run_rele[rele_index].time;
@@ -802,12 +805,14 @@ void rele_start(uint8_t rele_index, uint8_t function, uint8_t state, uint16_t ti
 			  }
 		    }
 		    
+		    // Função RETENTION
 		    if (pgm.run_rele[rele_index].function == PGM_RETENTION) {
 			  XMC_GPIO_SetOutputHigh(rele_ports[rele_index], rele_pins[rele_index]);
 		      pgm.run_rele[rele_index].previous_state = pgm.run_rele[rele_index].state;
 		      cont_rele[rele_index] = (pgm.run_rele[rele_index].time);
 		    }
 		    
+		    // Função DELAYED TOGGLE
 		    if(pgm.run_rele[rele_index].function == PGM_DELAYED_TOGGLE){
 				pgm.run_rele[rele_index].previous_state = false;
 		      	cont_rele[rele_index] = (pgm.run_rele[rele_index].time);
