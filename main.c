@@ -476,6 +476,7 @@ void SysTick_Handler(void) {
   
   static bool last_fecha_input = false;
   static uint32_t fecha_input_time = 0;
+ 
   
   if(--check_registration_timeout == 0){
 	check_registration_timeout = 10000;
@@ -543,7 +544,7 @@ void SysTick_Handler(void) {
       Blinking_gap = 200;
     } else {
       if(gate){
-		Blinking_gap = 200;
+		Blinking_gap = 500;
 	  }else{
 		Blinking_gap = 100;	
 	  }
@@ -585,14 +586,10 @@ void SysTick_Handler(void) {
       cont_rele[0] = pgm.run_rele[0].time;
       time_rele_flag[0] = true;
     }else if(pgm.run_rele[0].function == PGM_RETENTION){
-	  time_rele_flag[0] = true;
-	}else if(pgm.run_rele[0].function == PGM_DELAYED_TOGGLE){
-	  time_rele_flag[0] = true;
-	}else {
+		time_rele_flag[0] = true;
+	}else{
 		time_rele_flag[0] = false;
 	}
-
-    
   }
 
   if (--cont_rele[1] == 0) {
@@ -600,14 +597,10 @@ void SysTick_Handler(void) {
       cont_rele[1] = pgm.run_rele[1].time;
       time_rele_flag[1] = true;
     }else if(pgm.run_rele[1].function == PGM_RETENTION){
-	  time_rele_flag[1] = true;
-	}else if(pgm.run_rele[1].function == PGM_DELAYED_TOGGLE){
-	  time_rele_flag[1] = true;
+		time_rele_flag[1] = true;
 	}else{
 		time_rele_flag[1] = false;
 	}
-
-    
   }
 
   if (--cont_rele[2] == 0) {
@@ -615,32 +608,29 @@ void SysTick_Handler(void) {
       cont_rele[2] = pgm.run_rele[2].time;
       time_rele_flag[2] = true;
     }else if(pgm.run_rele[2].function == PGM_RETENTION){
-	  time_rele_flag[2] = true;
-	}else if(pgm.run_rele[2].function == PGM_DELAYED_TOGGLE){
-	  time_rele_flag[2] = true;
+		time_rele_flag[2] = true;
 	}else{
 		time_rele_flag[2] = false;
 	}
-
-    
   }
 
-  if (--cont_rele[3] == 0) {
-    if (pgm.run_rele[3].function == PGM_PULSED) {
-      cont_rele[3] = pgm.run_rele[3].time;
-      time_rele_flag[3] = true;
-    }else if(pgm.run_rele[3].function == PGM_RETENTION){
-	  time_rele_flag[3] = true;
-	}else if(pgm.run_rele[3].function == PGM_DELAYED_TOGGLE){
-	  time_rele_flag[3] = true;
-	}else{
-		time_rele_flag[3] = false;
-	}
-
-    
-  }
+//  if (--cont_rele[3] == 0) {
+//    if (pgm.run_rele[3].function == PGM_PULSED) {
+//      cont_rele[3] = pgm.run_rele[3].time;
+//      time_rele_flag[3] = true;
+//    }else{
+//		time_rele_flag[3] = true;
+//	}
+//  }
 
   systick++;
+}
+
+void rele_stop(uint8_t rele_index){
+	time_rele_flag[rele_index] = false;
+	pulsing_rl[rele_index] = false;
+	rele_started[rele_index] = false;
+	XMC_GPIO_SetOutputLow(rele_ports[rele_index], rele_pins[rele_index]);
 }
 
 void rele_Control() {
@@ -657,13 +647,12 @@ void rele_Control() {
 
       pgm.run_rele[0].previous_state = new_state_rl[0];
     }else{
-	  XMC_GPIO_SetOutputLow(rele_ports[0], rele_pins[0]);
+	  rele_stop(0);
 	}
 
     if (pgm.run_rele[0].function == PGM_RETENTION) {
       time_rele_flag[0] = false;
-      XMC_GPIO_SetOutputLow(rele_ports[0],
-                              rele_pins[0]);
+      rele_stop(0);
     }
     
     if (pgm.run_rele[0].function == PGM_DELAYED_TOGGLE) {
@@ -671,28 +660,25 @@ void rele_Control() {
       XMC_GPIO_SetOutputHigh(rele_ports[0], rele_pins[0]);
     }
   }
-
+  
   if (time_rele_flag[1]) {
-    if (pgm.run_rele[1].function == PGM_PULSED) {
-		if(pulsing_rl[1] == true){
-		  new_state_rl[1] = !(pgm.run_rele[1].previous_state);
-	      time_rele_flag[1] = false;
-	      if (new_state_rl[1]) {
-	        XMC_GPIO_SetOutputHigh(rele_ports[1], rele_pins[1]);
-	      } else {
-	        XMC_GPIO_SetOutputLow(rele_ports[1], rele_pins[1]);
-	      }
-	
-	      pgm.run_rele[1].previous_state = new_state_rl[1];
-		}else{
-	  	  XMC_GPIO_SetOutputLow(rele_ports[1], rele_pins[1]);
-	   }
-    }
+    if (pgm.run_rele[1].function == PGM_PULSED && pulsing_rl[1] == true) {
+      new_state_rl[1] = !(pgm.run_rele[1].previous_state);
+      time_rele_flag[1] = false;
+      if (new_state_rl[1]) {
+        XMC_GPIO_SetOutputHigh(rele_ports[1], rele_pins[1]);
+      } else {
+        XMC_GPIO_SetOutputLow(rele_ports[1], rele_pins[1]);
+      }
+
+      pgm.run_rele[1].previous_state = new_state_rl[1];
+    }else{
+	  rele_stop(1);
+	}
 
     if (pgm.run_rele[1].function == PGM_RETENTION) {
       time_rele_flag[1] = false;
-      XMC_GPIO_SetOutputLow(rele_ports[1],
-                              rele_pins[1]);
+      rele_stop(1);
     }
     
     if (pgm.run_rele[1].function == PGM_DELAYED_TOGGLE) {
@@ -701,27 +687,24 @@ void rele_Control() {
     }
   }
 
-  if (time_rele_flag[2]) {
-    if (pgm.run_rele[2].function == PGM_PULSED) {
-		if(pulsing_rl[2] == true){
-		  new_state_rl[2] = !(pgm.run_rele[2].previous_state);
-	      time_rele_flag[2] = false;
-	      if (new_state_rl[2]) {
-	        XMC_GPIO_SetOutputHigh(rele_ports[2], rele_pins[2]);
-	      } else {
-	        XMC_GPIO_SetOutputLow(rele_ports[2], rele_pins[2]);
-	      }
-	
-	      pgm.run_rele[2].previous_state = new_state_rl[2];
-		}else{
-	  	  XMC_GPIO_SetOutputLow(rele_ports[2], rele_pins[2]);
-	   }
-    }
+if (time_rele_flag[2]) {
+    if (pgm.run_rele[2].function == PGM_PULSED && pulsing_rl[2] == true) {
+      new_state_rl[2] = !(pgm.run_rele[2].previous_state);
+      time_rele_flag[2] = false;
+      if (new_state_rl[2]) {
+        XMC_GPIO_SetOutputHigh(rele_ports[2], rele_pins[2]);
+      } else {
+        XMC_GPIO_SetOutputLow(rele_ports[2], rele_pins[2]);
+      }
+
+      pgm.run_rele[2].previous_state = new_state_rl[2];
+    }else{
+	  rele_stop(2);
+	}
 
     if (pgm.run_rele[2].function == PGM_RETENTION) {
       time_rele_flag[2] = false;
-      XMC_GPIO_SetOutputLow(rele_ports[2],
-                              rele_pins[2]);
+      rele_stop(2);
     }
     
     if (pgm.run_rele[2].function == PGM_DELAYED_TOGGLE) {
@@ -729,42 +712,7 @@ void rele_Control() {
       XMC_GPIO_SetOutputHigh(rele_ports[2], rele_pins[2]);
     }
   }
-
-  if (time_rele_flag[3]) {
-    if (pgm.run_rele[3].function == PGM_PULSED) {
-		if(pulsing_rl[3] == true){
-		  new_state_rl[3] = !(pgm.run_rele[3].previous_state);
-	      time_rele_flag[3] = false;
-	      if (new_state_rl[3]) {
-	        XMC_GPIO_SetOutputHigh(rele_ports[3], rele_pins[3]);
-	      } else {
-	        XMC_GPIO_SetOutputLow(rele_ports[3], rele_pins[3]);
-	      }
-	
-	      pgm.run_rele[3].previous_state = new_state_rl[3];
-		}else{
-	  	  XMC_GPIO_SetOutputLow(rele_ports[3], rele_pins[3]);
-	   }
-    }
-
-    if (pgm.run_rele[3].function == PGM_RETENTION) {
-      time_rele_flag[3] = false;
-      XMC_GPIO_SetOutputLow(rele_ports[3],
-                              rele_pins[3]);
-    }
-    
-    if (pgm.run_rele[3].function == PGM_DELAYED_TOGGLE) {
-      time_rele_flag[3] = false;
-      XMC_GPIO_SetOutputHigh(rele_ports[3], rele_pins[3]);
-    }
-  }
-}
-
-void rele_stop(uint8_t rele_index){
-	time_rele_flag[rele_index] = false;
-	pulsing_rl[rele_index] = false;
-	rele_started[rele_index] = false;
-	XMC_GPIO_SetOutputLow(rele_ports[rele_index], rele_pins[rele_index]);
+  
 }
 
 void rele_start(uint8_t rele_index, uint8_t function, uint8_t state, uint16_t time){
