@@ -32,7 +32,7 @@
 
 #define RECEIVE 0
 #define GET_UID 1
-#define STATUS_RL 2
+#define STATUS_PGM 2
 #define GATE_STATUS 3
 #define RL_CONTROL 4
 #define DELETE 5
@@ -159,6 +159,7 @@ volatile bool channel_free = false;
 volatile bool currently_sending = false;
 bool new_alarm_packet = false;
 bool new_gate_packet = false;
+volatile bool check_registration = false;
 
 // Variáveis do pacote
 #define start_byte 0x7E
@@ -178,6 +179,7 @@ uint8_t estado_gate = TRANSMIT;
 
 // Variáveis de tempo/delays
 uint16_t gate_packet_delay = 3000;
+uint16_t check_registration_timeout = 10000;
 uint8_t num_aleatorio = 200;
 uint16_t delay_aleatorio = 0;
 uint8_t Blinking_gap = 10;
@@ -229,10 +231,9 @@ typedef struct {
 
 LED_t leds[1] = {{LED_ST_PORT, LED_ST_PIN, 0, 0, false}};
 
-XMC_GPIO_PORT_t *const rele_ports[5] = {RL1_PORT, RL2_PORT, RL3_PORT, RL4_PORT,
-                                        RL5_PORT};
+XMC_GPIO_PORT_t *const rele_ports[5] = {RL1_PORT, RL2_PORT, RL3_PORT};
 
-const uint8_t rele_pins[5] = {RL1_PIN, RL2_PIN, RL3_PIN, RL4_PIN, RL5_PIN};
+const uint8_t rele_pins[5] = {RL1_PIN, RL2_PIN, RL3_PIN};
 
 typedef struct {
   pgm_packet_error_e pgm_error;

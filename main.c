@@ -464,9 +464,9 @@ void blink_led_ST(uint8_t n) {
 // Rotina para controle dos tempos
 void SysTick_Handler(void) {
 	
-  bool bot_input = !XMC_GPIO_GetInput(LED_ST_PORT, LED_ST_PIN);
-  bool abre_input = 0;
-  bool fecha_input = 0;
+  bool bot_input = !XMC_GPIO_GetInput(BOT_PORT, BOT_PIN);
+  bool abre_input = !XMC_GPIO_GetInput(ABR_PORT, ABR_PIN);
+  bool fecha_input = !XMC_GPIO_GetInput(FEC_PORT, FEC_PIN);
   
   static bool last_bot_input = false;
   static uint32_t bot_input_time = 0;
@@ -477,6 +477,15 @@ void SysTick_Handler(void) {
   static bool last_fecha_input = false;
   static uint32_t fecha_input_time = 0;
   
+  if(--check_registration_timeout == 0){
+	check_registration_timeout = 10000;
+	if(!cadastrado){
+		check_registration = true;
+	}else{
+		check_registration = false;
+	}
+  }
+  
   /* Debounce Botoeira*/
   if(bot_input && !last_bot_input){
 	last_bot_input = true;
@@ -486,7 +495,7 @@ void SysTick_Handler(void) {
   }else{
 	last_bot_input = false;
   }
- 
+
   if((bot_input_time - systick) == 0 && last_bot_input == true){
 	send_gate_cmd = true;
 	cmd_botoeira = true;
@@ -858,7 +867,7 @@ void Control_alarm() {
       } else if (pgm.alarm_packet.function == PGM_STATUS && pgm.alarm_packet.address == crc_address) {
         cadastrado = true;
         numero_modulo = pgm.alarm_packet.data[0] + 1;
-        estado_alarm = STATUS_RL;
+        estado_alarm = LIMPAR;
         
       } else if (pgm.alarm_packet.function == PGM_TOGGLE || pgm.alarm_packet.function == PGM_PULSED || pgm.alarm_packet.function == PGM_RETENTION) {
 		
@@ -905,7 +914,11 @@ void Control_alarm() {
         pacote_obsoleto = true;
         estado_alarm = LIMPAR;
       }
-    }
+    }else if(check_registration){
+		check_registration = false;
+		estado_alarm = STATUS_PGM;
+	}
+    
 
   } break;
 
@@ -920,19 +933,15 @@ void Control_alarm() {
 
   } break;
 
-  case STATUS_RL: {
-    if (pgm.alarm_packet.address == crc_address) {
-      // Enviar o status de cada rele
+  case STATUS_PGM: {
+      //Verificar cadastro
       buffer_size = 8;
       montar_pacote(Buffer_TX, buffer_size, PGM_ID_RESPONSE, crc_address,
                     PGM_STATUS, &pgm.status_rele.Byte, 1, false);
 
-      delay_aleatorio = gerar_intervalo(UID0, UID1, UID2, UID3, systick);
+      delay_tx = gerar_intervalo(UID0, UID1, UID2, UID3, systick);
 
-      estado_alarm = TRANSMIT;
-    } else {
-      estado_alarm = LIMPAR;
-    }
+      estado_alarm = DELAY_ENVIO;
 
   } break;
   
@@ -1043,7 +1052,8 @@ void Control_gate() {
 		if(pgm.gate_packet.function == 'H'){
 			pgm.gate_info.state = pgm.gate_packet.data[5];
 			
-			uint8_t preset = 1;
+			uint8_t preset = !XMC_GPIO_GetInput(JP1_PORT, JP1_PIN);
+//			uint8_t preset = 0;
 			bool luz = (pgm.gate_packet.data[7]) & 1;
 			bool trava = (pgm.gate_packet.data[7] >> 1) & 1;
 			bool abre = (pgm.gate_packet.data[7] >> 2) & 1;
@@ -1054,7 +1064,7 @@ void Control_gate() {
 			bool reed_fecha = !((pgm.gate_packet.data[7] >> 7) & 1);
 			bool bot = (pgm.gate_packet.data[6]) & 1;
 			
-			if(preset == 0){
+			if(preset == 2){
 				// Status
 				if(foto_fecha){
 					XMC_GPIO_SetOutputHigh(rele_ports[0], rele_pins[0]);
@@ -1081,7 +1091,7 @@ void Control_gate() {
 				}
 			}
 			
-			if(preset == 1){
+			if(preset == 0){
 				//Acessórios
 				
 				//SINALEIRA
@@ -1098,22 +1108,23 @@ void Control_gate() {
 					rele_stop(1);
 				}
 				
-				//FOTOCELULA FECHAMENTO
-				if(!foto_fecha){
+				//LUZ DE GARAGEM
+				if(luz){
 					rele_start(2, PGM_TOGGLE, true, 0);
 				}else{
 					rele_stop(2);
 				}
 				
-				//LUZ DE GARAGEM
-				if(luz){
+				//FOTOCELULA FECHAMENTO
+				if(!foto_fecha){
 					rele_start(3, PGM_TOGGLE, true, 0);
 				}else{
 					rele_stop(3);
 				}
+				
 			}
 			
-			if(preset == 2){
+			if(preset == 1){
 				if(pgm.gate_info.state == ABERTO){
 					rele_start(0, PGM_TOGGLE, true, 300);
 				}else{

@@ -38,30 +38,14 @@
                 <Personality template="xmc_pin" version="1.0">
                     <Block location="ioss[0].port[0].pin[6]" locked="true">
                         <Aliases>
-                            <Alias value="RL4"/>
+                            <Alias value="JP1"/>
                         </Aliases>
                     </Block>
                     <Parameters>
                         <Param id="inFlash" value="true"/>
                         <Param id="input_hysteresis" value="XMC_GPIO_INPUT_HYSTERESIS_STANDARD"/>
-                        <Param id="input_mode" value="XMC_GPIO_MODE_INPUT_TRISTATE"/>
-                        <Param id="io_function" value="XMC_GPIO_INPUT_OUTPUT"/>
-                        <Param id="output_level" value="XMC_GPIO_OUTPUT_LEVEL_LOW"/>
-                        <Param id="output_mode" value="XMC_GPIO_MODE_OUTPUT_PUSH_PULL"/>
-                        <Param id="output_strength" value="XMC_GPIO_OUTPUT_STRENGTH_NONE"/>
-                    </Parameters>
-                </Personality>
-                <Personality template="xmc_pin" version="1.0">
-                    <Block location="ioss[0].port[0].pin[7]" locked="true">
-                        <Aliases>
-                            <Alias value="RL5"/>
-                        </Aliases>
-                    </Block>
-                    <Parameters>
-                        <Param id="inFlash" value="true"/>
-                        <Param id="input_hysteresis" value="XMC_GPIO_INPUT_HYSTERESIS_STANDARD"/>
-                        <Param id="input_mode" value="XMC_GPIO_MODE_INPUT_TRISTATE"/>
-                        <Param id="io_function" value="XMC_GPIO_INPUT_OUTPUT"/>
+                        <Param id="input_mode" value="XMC_GPIO_MODE_INPUT_PULL_DOWN"/>
+                        <Param id="io_function" value="XMC_GPIO_INPUT"/>
                         <Param id="output_level" value="XMC_GPIO_OUTPUT_LEVEL_LOW"/>
                         <Param id="output_mode" value="XMC_GPIO_MODE_OUTPUT_PUSH_PULL"/>
                         <Param id="output_strength" value="XMC_GPIO_OUTPUT_STRENGTH_NONE"/>
@@ -77,7 +61,7 @@
                         <Param id="inFlash" value="true"/>
                         <Param id="input_hysteresis" value="XMC_GPIO_INPUT_HYSTERESIS_STANDARD"/>
                         <Param id="input_mode" value="XMC_GPIO_MODE_INPUT_PULL_UP"/>
-                        <Param id="io_function" value="XMC_GPIO_INPUT"/>
+                        <Param id="io_function" value="XMC_GPIO_INPUT_OUTPUT"/>
                         <Param id="output_level" value="XMC_GPIO_OUTPUT_LEVEL_HIGH"/>
                         <Param id="output_mode" value="XMC_GPIO_MODE_OUTPUT_PUSH_PULL"/>
                         <Param id="output_strength" value="XMC_GPIO_OUTPUT_STRENGTH_NONE"/>
@@ -174,6 +158,54 @@
                         <Param id="input_hysteresis" value="XMC_GPIO_INPUT_HYSTERESIS_STANDARD"/>
                         <Param id="input_mode" value="XMC_GPIO_MODE_INPUT_TRISTATE"/>
                         <Param id="io_function" value="XMC_GPIO_INPUT_OUTPUT"/>
+                        <Param id="output_level" value="XMC_GPIO_OUTPUT_LEVEL_LOW"/>
+                        <Param id="output_mode" value="XMC_GPIO_MODE_OUTPUT_PUSH_PULL"/>
+                        <Param id="output_strength" value="XMC_GPIO_OUTPUT_STRENGTH_NONE"/>
+                    </Parameters>
+                </Personality>
+                <Personality template="xmc_pin" version="1.0">
+                    <Block location="ioss[0].port[2].pin[2]" locked="true">
+                        <Aliases>
+                            <Alias value="FEC"/>
+                        </Aliases>
+                    </Block>
+                    <Parameters>
+                        <Param id="inFlash" value="true"/>
+                        <Param id="input_hysteresis" value="XMC_GPIO_INPUT_HYSTERESIS_STANDARD"/>
+                        <Param id="input_mode" value="XMC_GPIO_MODE_INPUT_TRISTATE"/>
+                        <Param id="io_function" value="XMC_GPIO_INPUT"/>
+                        <Param id="output_level" value="XMC_GPIO_OUTPUT_LEVEL_LOW"/>
+                        <Param id="output_mode" value="XMC_GPIO_MODE_OUTPUT_PUSH_PULL"/>
+                        <Param id="output_strength" value="XMC_GPIO_OUTPUT_STRENGTH_NONE"/>
+                    </Parameters>
+                </Personality>
+                <Personality template="xmc_pin" version="1.0">
+                    <Block location="ioss[0].port[2].pin[6]" locked="true">
+                        <Aliases>
+                            <Alias value="ABR"/>
+                        </Aliases>
+                    </Block>
+                    <Parameters>
+                        <Param id="inFlash" value="true"/>
+                        <Param id="input_hysteresis" value="XMC_GPIO_INPUT_HYSTERESIS_STANDARD"/>
+                        <Param id="input_mode" value="XMC_GPIO_MODE_INPUT_TRISTATE"/>
+                        <Param id="io_function" value="XMC_GPIO_INPUT"/>
+                        <Param id="output_level" value="XMC_GPIO_OUTPUT_LEVEL_LOW"/>
+                        <Param id="output_mode" value="XMC_GPIO_MODE_OUTPUT_PUSH_PULL"/>
+                        <Param id="output_strength" value="XMC_GPIO_OUTPUT_STRENGTH_NONE"/>
+                    </Parameters>
+                </Personality>
+                <Personality template="xmc_pin" version="1.0">
+                    <Block location="ioss[0].port[2].pin[7]" locked="true">
+                        <Aliases>
+                            <Alias value="BOT"/>
+                        </Aliases>
+                    </Block>
+                    <Parameters>
+                        <Param id="inFlash" value="true"/>
+                        <Param id="input_hysteresis" value="XMC_GPIO_INPUT_HYSTERESIS_STANDARD"/>
+                        <Param id="input_mode" value="XMC_GPIO_MODE_INPUT_TRISTATE"/>
+                        <Param id="io_function" value="XMC_GPIO_INPUT"/>
                         <Param id="output_level" value="XMC_GPIO_OUTPUT_LEVEL_LOW"/>
                         <Param id="output_mode" value="XMC_GPIO_MODE_OUTPUT_PUSH_PULL"/>
                         <Param id="output_strength" value="XMC_GPIO_OUTPUT_STRENGTH_NONE"/>
