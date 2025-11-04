@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <launchConfiguration type="ilg.gnumcueclipse.debug.gdbjtag.jlink.launchConfigurationType">
     <stringAttribute key="com.cypress.studio.launch.mode" value="debug"/>
-    <stringAttribute key="com.cypress.studio.launch.owner.0" value="c58d72fd-eb9b-477f-9eea-ccd5b0a7603c"/>
+    <stringAttribute key="com.cypress.studio.launch.owner.0" value="6d19332e-31a7-4668-bbfc-5055f10e4883"/>
     <booleanAttribute key="ilg.gnumcueclipse.debug.gdbjtag.jlink.doConnectToRunning" value="false"/>
     <booleanAttribute key="ilg.gnumcueclipse.debug.gdbjtag.jlink.doContinue" value="true"/>
     <booleanAttribute key="ilg.gnumcueclipse.debug.gdbjtag.jlink.doDebugInRam" value="false"/>
@@ -42,8 +42,8 @@
     <intAttribute key="ilg.gnumcueclipse.debug.gdbjtag.jlink.swoEnableTargetCpuFreq" value="0"/>
     <stringAttribute key="ilg.gnumcueclipse.debug.gdbjtag.jlink.swoEnableTargetPortMask" value="0x1"/>
     <intAttribute key="ilg.gnumcueclipse.debug.gdbjtag.jlink.swoEnableTargetSwoFreq" value="0"/>
-    <stringAttribute key="ilg.gnumcueclipse.debug.gdbjtag.svdPath" value="${cy_prj_path:c58d72fd-eb9b-477f-9eea-ccd5b0a7603c}/../mtb_shared/mtb-xmclib-cat3/latest-v4.X/CMSIS/Infineon/SVD/XMC1100.svd"/>
-    <stringAttribute key="org.eclipse.cdt.debug.gdbjtag.core.imageFileName" value="${cy_prj_path:c58d72fd-eb9b-477f-9eea-ccd5b0a7603c}/build/last_config/mtb-example-xmc-empty-app.hex"/>
+    <stringAttribute key="ilg.gnumcueclipse.debug.gdbjtag.svdPath" value="${cy_prj_path:6d19332e-31a7-4668-bbfc-5055f10e4883}/../mtb_shared/mtb-xmclib-cat3/latest-v4.X/CMSIS/Infineon/SVD/XMC1100.svd"/>
+    <stringAttribute key="org.eclipse.cdt.debug.gdbjtag.core.imageFileName" value="${cy_prj_path:6d19332e-31a7-4668-bbfc-5055f10e4883}/build/last_config/mtb-example-xmc-empty-app.hex"/>
     <stringAttribute key="org.eclipse.cdt.debug.gdbjtag.core.imageOffset" value=""/>
     <stringAttribute key="org.eclipse.cdt.debug.gdbjtag.core.ipAddress" value="localhost"/>
     <stringAttribute key="org.eclipse.cdt.debug.gdbjtag.core.jtagDevice" value="GNU MCU J-Link"/>
@@ -55,7 +55,7 @@
     <booleanAttribute key="org.eclipse.cdt.debug.gdbjtag.core.setResume" value="false"/>
     <booleanAttribute key="org.eclipse.cdt.debug.gdbjtag.core.setStopAt" value="true"/>
     <stringAttribute key="org.eclipse.cdt.debug.gdbjtag.core.stopAt" value="main"/>
-    <stringAttribute key="org.eclipse.cdt.debug.gdbjtag.core.symbolsFileName" value="${cy_prj_path:c58d72fd-eb9b-477f-9eea-ccd5b0a7603c}/build/last_config/mtb-example-xmc-empty-app.elf"/>
+    <stringAttribute key="org.eclipse.cdt.debug.gdbjtag.core.symbolsFileName" value="${cy_prj_path:6d19332e-31a7-4668-bbfc-5055f10e4883}/build/last_config/mtb-example-xmc-empty-app.elf"/>
     <stringAttribute key="org.eclipse.cdt.debug.gdbjtag.core.symbolsOffset" value=""/>
     <booleanAttribute key="org.eclipse.cdt.debug.gdbjtag.core.useFileForImage" value="true"/>
     <booleanAttribute key="org.eclipse.cdt.debug.gdbjtag.core.useFileForSymbols" value="true"/>
@@ -66,11 +66,9 @@
     <booleanAttribute key="org.eclipse.cdt.dsf.gdb.UPDATE_THREADLIST_ON_SUSPEND" value="false"/>
     <intAttribute key="org.eclipse.cdt.launch.ATTR_BUILD_BEFORE_LAUNCH_ATTR" value="2"/>
     <stringAttribute key="org.eclipse.cdt.launch.COREFILE_PATH" value=""/>
-    <stringAttribute key="org.eclipse.cdt.launch.PROGRAM_NAME" value="${cy_prj_path:c58d72fd-eb9b-477f-9eea-ccd5b0a7603c}/build/last_config/mtb-example-xmc-empty-app.elf"/>
+    <stringAttribute key="org.eclipse.cdt.launch.PROGRAM_NAME" value="${cy_prj_path:6d19332e-31a7-4668-bbfc-5055f10e4883}/build/last_config/mtb-example-xmc-empty-app.elf"/>
     <stringAttribute key="org.eclipse.cdt.launch.PROJECT_ATTR" value="PGM_Alarme_Next"/>
     <booleanAttribute key="org.eclipse.cdt.launch.PROJECT_BUILD_CONFIG_AUTO_ATTR" value="true"/>
-    <stringAttribute key="org.eclipse.cdt.launch.PROJECT_BUILD_CONFIG_ID_ATTR" value=""/>
-    <booleanAttribute key="org.eclipse.debug.core.ATTR_FORCE_SYSTEM_CONSOLE_ENCODING" value="false"/>
     <listAttribute key="org.eclipse.debug.core.MAPPED_RESOURCE_PATHS">
         <listEntry value="/PGM_Alarme_Next"/>
     </listAttribute>

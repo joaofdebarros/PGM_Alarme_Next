@@ -211,6 +211,22 @@
                         <Param id="output_strength" value="XMC_GPIO_OUTPUT_STRENGTH_NONE"/>
                     </Parameters>
                 </Personality>
+                <Personality template="xmc_pin" version="1.0">
+                    <Block location="ioss[0].port[2].pin[9]" locked="true">
+                        <Aliases>
+                            <Alias value="PROG_JP"/>
+                        </Aliases>
+                    </Block>
+                    <Parameters>
+                        <Param id="inFlash" value="true"/>
+                        <Param id="input_hysteresis" value="XMC_GPIO_INPUT_HYSTERESIS_STANDARD"/>
+                        <Param id="input_mode" value="XMC_GPIO_MODE_INPUT_PULL_UP"/>
+                        <Param id="io_function" value="XMC_GPIO_INPUT"/>
+                        <Param id="output_level" value="XMC_GPIO_OUTPUT_LEVEL_LOW"/>
+                        <Param id="output_mode" value="XMC_GPIO_MODE_OUTPUT_PUSH_PULL"/>
+                        <Param id="output_strength" value="XMC_GPIO_OUTPUT_STRENGTH_NONE"/>
+                    </Parameters>
+                </Personality>
                 <Personality template="xmc1_clocks" version="1.0">
                     <Block location="scu[0].clock[0]" locked="true"/>
                 </Personality>
@@ -248,6 +264,23 @@
                     <Block location="scu[0].clock[0].rtcclk[0]" locked="true"/>
                     <Parameters>
                         <Param id="rtc_src" value="XMC_SCU_CLOCK_RTCCLKSRC_DCO2"/>
+                    </Parameters>
+                </Personality>
+                <Personality template="xmc1_eeprom" version="1.0">
+                    <Block location="scu[0].eeprom[0]" locked="true"/>
+                    <Parameters>
+                        <Param id="Block0_size" value="16"/>
+                        <Param id="Block1_size" value="16"/>
+                        <Param id="Block2_size" value="16"/>
+                        <Param id="Block3_size" value="16"/>
+                        <Param id="Block4_size" value="16"/>
+                        <Param id="Block5_size" value="16"/>
+                        <Param id="Block6_size" value="16"/>
+                        <Param id="Block7_size" value="16"/>
+                        <Param id="Block8_size" value="16"/>
+                        <Param id="Block9_size" value="16"/>
+                        <Param id="Number_of_Blocks" value="1"/>
+                        <Param id="eeprom_size" value="1792"/>
                     </Parameters>
                 </Personality>
                 <Personality template="xmc_uart" version="1.0">
@@ -363,9 +396,8 @@
                         <Param id="TransmitShiftInterrupt" value="false"/>
                         <Param id="TransmitShiftInterruptSRSel" value="0"/>
                         <Param id="TransmitterFrameFinishedEvent" value="false"/>
-                        <Param id="TxFIFOLimit" value="15"/>
                         <Param id="TxFIFOPointer" value="48"/>
-                        <Param id="TxFIFOSize" value="XMC_USIC_CH_FIFO_SIZE_16WORDS"/>
+                        <Param id="TxFIFOSize" value="XMC_USIC_CH_FIFO_DISABLED"/>
                         <Param id="configuration" value="auto"/>
                         <Param id="inFlash" value="true"/>
                     </Parameters>
