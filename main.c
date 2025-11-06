@@ -608,7 +608,12 @@ void blink_led_ST(uint8_t n) {
 // Rotina para controle dos tempos
 void SysTick_Handler(void) {
 	
-  prog_connected = !XMC_GPIO_GetInput(PROG_JP_PORT, PROG_JP_PIN);		
+  prog_connected = !XMC_GPIO_GetInput(PROG_JP_PORT, PROG_JP_PIN);	
+  
+  if(!prog_connected){
+	estado_prog_tx = 0;
+	boot_completed = false;
+  }	
 	
   bool bot_input = !XMC_GPIO_GetInput(BOT_PORT, BOT_PIN);
   bool abre_input = !XMC_GPIO_GetInput(ABR_PORT, ABR_PIN);
@@ -1482,21 +1487,126 @@ void program_PGM_RX(){
 }
 
 void program_PGM_TX(){
-	#define RELE_1_TRIGGER	0
-	#define RELE_1_MODE		1
-	#define RELE_1_TIME		2
-
-	#define RELE_2_MODE		3
-	#define RELE_2_TIME		4
-
-	#define RELE_3_MODE		5
-	#define RELE_3_TIME		6
+	#define TELA_INICIAL	0
+	#define RELE_1_MENU		1
+	#define RELE_2_MENU		2
+	#define RELE_3_MENU		3
+	#define RELE_1_TRIGGER	4
+	#define RELE_1_MODE		5
+	#define RELE_1_TIME		6
+	#define RELE_1_RETURN	7
+	#define RELE_2_TRIGGER	8
+	#define RELE_2_MODE		9
+	#define RELE_2_TIME		10
+	#define RELE_2_RETURN	11
+	#define RELE_3_TRIGGER	12
+	#define RELE_3_MODE		13
+	#define RELE_3_TIME		14
+	#define RELE_3_RETURN	15
 	
 	static uint32_t delay = 1000;
+	static uint32_t boot_delay;
 	char data[32];
 	uint8_t data_beep[3] = {50,50,1};
 	
 	switch (estado_prog_tx) {
+		case TELA_INICIAL:
+			strcpy(data," Configurar PGM                 ");
+			
+			if(!boot_completed){
+				boot_completed = true;
+				boot_delay = systick + 1500;
+				send_prog('S', 0, data, 0);
+			}
+			
+			if (systick >= boot_delay){
+			  	estado_prog_tx = RELE_1_MENU;
+		    }
+			break;
+		case RELE_1_MENU:
+			strcpy(data," Ajustes Rele 1:  Pressione (+) ");
+
+			if (systick >= delay) {
+			  	delay = systick + 150;
+				send_prog('S', 0, data, 0);
+		    }else{
+				if(click_right){
+					click_right = false;
+					++estado_prog_tx;
+					send_prog('B', data_beep, 0, 0);
+				}
+				
+				if(click_left){
+					click_left = false;
+					estado_prog_tx = RELE_3_MENU;
+					send_prog('B', data_beep, 0, 0);
+				}
+				
+				if(click_add || click_ok){
+					click_add = false;
+					click_ok = false;
+					estado_prog_tx = RELE_1_TRIGGER;
+					send_prog('B', data_beep, 0, 0);
+				}
+	
+			}
+			break;
+		case RELE_2_MENU:
+			strcpy(data," Ajustes Rele 2:  Pressione (+) ");
+
+			if (systick >= delay) {
+			  	delay = systick + 150;
+				send_prog('S', 0, data, 0);
+		    }else{
+				if(click_right){
+					click_right = false;
+					++estado_prog_tx;
+					send_prog('B', data_beep, 0, 0);
+				}
+				
+				if(click_left){
+					click_left = false;
+					--estado_prog_tx;
+					send_prog('B', data_beep, 0, 0);
+				}
+				
+				if(click_add || click_ok){
+					click_add = false;
+					click_ok = false;
+					estado_prog_tx = RELE_2_TRIGGER;
+					send_prog('B', data_beep, 0, 0);
+				}
+	
+			}
+			break;
+		case RELE_3_MENU:
+			strcpy(data," Ajustes Rele 3:  Pressione (+) ");
+
+			if (systick >= delay) {
+			  	delay = systick + 150;
+				send_prog('S', 0, data, 0);
+		    }else{
+				if(click_right){
+					click_right = false;
+					estado_prog_tx = RELE_1_MENU;
+					send_prog('B', data_beep, 0, 0);
+				}
+				
+				if(click_left){
+					click_left = false;
+					--estado_prog_tx;
+					send_prog('B', data_beep, 0, 0);
+				}
+				
+				if(click_add || click_ok){
+					click_add = false;
+					click_ok = false;
+					estado_prog_tx = RELE_3_TRIGGER;
+					send_prog('B', data_beep, 0, 0);
+				}
+	
+			}
+			break;
 		case RELE_1_TRIGGER:
 			
 			if(pgm.gate_rele_config[0].trigger == LUZ){
@@ -1543,13 +1653,13 @@ void program_PGM_TX(){
 		    }else{
 				if(click_right){
 					click_right = false;
-					estado_prog_tx = RELE_1_TRIGGER + 1;
+					++estado_prog_tx;
 					send_prog('B', data_beep, 0, 0);
 				}
 				
 				if(click_left){
 					click_left = false;
-					estado_prog_tx = RELE_3_TIME;
+					estado_prog_tx = RELE_1_RETURN;
 					send_prog('B', data_beep, 0, 0);
 				}
 				
@@ -1589,13 +1699,13 @@ void program_PGM_TX(){
 		    }else{
 				if(click_right){
 					click_right = false;
-					estado_prog_tx = RELE_1_MODE + 1;
+					++estado_prog_tx;
 					send_prog('B', data_beep, 0, 0);
 				}
 				
 				if(click_left){
 					click_left = false;
-					estado_prog_tx = RELE_1_TRIGGER;
+					--estado_prog_tx;
 					send_prog('B', data_beep, 0, 0);
 				}
 				
@@ -1632,13 +1742,13 @@ void program_PGM_TX(){
 		    }else{
 				if(click_right){
 					click_right = false;
-					estado_prog_tx = RELE_1_TRIGGER;
+					++estado_prog_tx;
 					send_prog('B', data_beep, 0, 0);
 				}
 				
 				if(click_left){
 					click_left = false;
-					estado_prog_tx = RELE_1_TIME - 1;
+					--estado_prog_tx;
 					send_prog('B', data_beep, 0, 0);
 				}
 				
@@ -1665,6 +1775,430 @@ void program_PGM_TX(){
 						send_prog('B', data_beep, 0, 0);
 					}
 				}
+			}
+			break;
+		case RELE_1_RETURN:
+			strcpy(data,"   Retornar:      Pressione (-) ");
+
+			if (systick >= delay) {
+			  	delay = systick + 150;
+				send_prog('S', 0, data, 0);
+		    }else{
+				if(click_right){
+					click_right = false;
+					estado_prog_tx = RELE_1_TRIGGER;
+					send_prog('B', data_beep, 0, 0);
+				}
+				
+				if(click_left){
+					click_left = false;
+					--estado_prog_tx;
+					send_prog('B', data_beep, 0, 0);
+				}
+				
+				if(click_subtract || click_ok){
+					click_subtract = false;
+					click_ok = false;
+					estado_prog_tx = RELE_1_MENU;
+					send_prog('B', data_beep, 0, 0);
+				}
+	
+			}
+			break;
+		case RELE_2_TRIGGER:
+			
+			if(pgm.gate_rele_config[1].trigger == LUZ){
+				strcpy(data,"Gatilho Rele 2:  Luz de Garagem  ");
+			}else if(pgm.gate_rele_config[1].trigger == TRAVA){
+				strcpy(data,"Gatilho Rele 2:       Trava      ");
+			}else if(pgm.gate_rele_config[1].trigger == BOT_ABRE){
+				strcpy(data,"Gatilho Rele 2:  BOT  Abertura   ");
+			}else if(pgm.gate_rele_config[1].trigger == BOT_FECHA){
+				strcpy(data,"Gatilho Rele 2:  BOT Fechamento  ");
+			}
+			else if(pgm.gate_rele_config[1].trigger == BOT){
+				strcpy(data,"Gatilho Rele 2:     Botoeira     ");
+			}
+			else if(pgm.gate_rele_config[1].trigger == FOT_FEC){
+				strcpy(data,"Gatilho Rele 2:  FOT Fechamento  ");
+			}
+			else if(pgm.gate_rele_config[1].trigger == FOT_ABR){
+				strcpy(data,"Gatilho Rele 2:   FOT Abertura   ");
+			}
+			else if(pgm.gate_rele_config[1].trigger == REED_FEC){
+				strcpy(data,"Gatilho Rele 2: Reed Fechamento  ");
+			}
+			else if(pgm.gate_rele_config[1].trigger == REED_ABR){
+				strcpy(data,"Gatilho Rele 2:  Reed Abertura   ");
+			}
+			else if(pgm.gate_rele_config[1].trigger == PORTAO_ABERTO){
+				strcpy(data,"Gatilho Rele 2:  Portao Aberto   ");
+			}
+			else if(pgm.gate_rele_config[1].trigger == PORTAO_ABRINDO){
+				strcpy(data,"Gatilho Rele 2:  Portao Abrindo  ");
+			}
+			else if(pgm.gate_rele_config[1].trigger == PORTAO_FECHADO){
+				strcpy(data,"Gatilho Rele 2:  Portao Fechado  ");
+			}
+			else if(pgm.gate_rele_config[1].trigger == PORTAO_FECHANDO){
+				strcpy(data,"Gatilho Rele 2: Portao Fechando  ");
+			}
+			
+			
+			if (systick >= delay) {
+			  	delay = systick + 150;
+				send_prog('S', 0, data, 0);
+		    }else{
+				if(click_right){
+					click_right = false;
+					++estado_prog_tx;
+					send_prog('B', data_beep, 0, 0);
+				}
+				
+				if(click_left){
+					click_left = false;
+					estado_prog_tx = RELE_2_RETURN;
+					send_prog('B', data_beep, 0, 0);
+				}
+				
+				if(click_add){
+					click_add = false;
+					if(pgm.gate_rele_config[1].trigger < 12){
+						++pgm.gate_rele_config[1].trigger;
+						send_prog('B', data_beep, 0, 0);
+					}
+				}
+				
+				if(click_subtract){
+					click_subtract = false;
+					if(pgm.gate_rele_config[1].trigger > 0){
+						--pgm.gate_rele_config[1].trigger;
+						send_prog('B', data_beep, 0, 0);
+					}
+				}
+			}
+
+			
+			break;
+		case RELE_2_MODE:
+			if(pgm.gate_rele_config[1].mode == On_Off){
+				strcpy(data,"  Modo Rele 2:       Normal      ");
+			}else if(pgm.gate_rele_config[1].mode == Delayed_Toggle){
+				strcpy(data,"  Modo Rele 2:       Retardo     ");
+			}else if(pgm.gate_rele_config[1].mode == Pulsed){
+				strcpy(data,"  Modo Rele 2:       Pulsado     ");
+			}else if(pgm.gate_rele_config[1].mode == Retention){
+				strcpy(data,"  Modo Rele 2:      Retencao     ");
+			}
+			
+			if (systick >= delay) {
+			  	delay = systick + 150;
+				send_prog('S', 0, data, 0);
+		    }else{
+				if(click_right){
+					click_right = false;
+					++estado_prog_tx;
+					send_prog('B', data_beep, 0, 0);
+				}
+				
+				if(click_left){
+					click_left = false;
+					--estado_prog_tx;
+					send_prog('B', data_beep, 0, 0);
+				}
+				
+				if(click_add){
+					click_add = false;
+					if(pgm.gate_rele_config[1].mode < 3){
+						++pgm.gate_rele_config[1].mode;
+						send_prog('B', data_beep, 0, 0);
+					}
+				}
+				
+				if(click_subtract){
+					click_subtract = false;
+					if(pgm.gate_rele_config[1].mode > 0){
+						--pgm.gate_rele_config[1].mode;
+						send_prog('B', data_beep, 0, 0);
+					}
+				}
+			}
+			break;
+		case RELE_2_TIME:
+			sprintf(data, " Tempo Rele 2:         %us         ",pgm.gate_rele_config[1].time);
+			buffer_size = (strlen(data) + 6);
+			montar_pacote_prog(Buffer_TX, buffer_size, 0x01,'S', data, strlen(data));
+			
+			if (systick >= delay) {
+			  	delay = systick + 150;
+		      	transmit_packet(Buffer_TX, buffer_size);
+		    }
+		    
+			if (systick >= delay) {
+			  	delay = systick + 150;
+				send_prog('S', 0, data, 0);
+		    }else{
+				if(click_right){
+					click_right = false;
+					++estado_prog_tx;
+					send_prog('B', data_beep, 0, 0);
+				}
+				
+				if(click_left){
+					click_left = false;
+					--estado_prog_tx;
+					send_prog('B', data_beep, 0, 0);
+				}
+				
+				if(click_add){
+					click_add = false;
+					if(pgm.gate_rele_config[1].time < 65000){
+						if(pgm.gate_rele_config[1].mode == Pulsed){
+							pgm.gate_rele_config[1].time = pgm.gate_rele_config[1].time + 50;
+						}else{
+							++pgm.gate_rele_config[1].time;
+						}
+						send_prog('B', data_beep, 0, 0);
+					}
+				}
+				
+				if(click_subtract){
+					click_subtract = false;
+					if(pgm.gate_rele_config[1].time > 0){
+						if(pgm.gate_rele_config[1].mode == Pulsed){
+							pgm.gate_rele_config[1].time = pgm.gate_rele_config[1].time - 50;
+						}else{
+							--pgm.gate_rele_config[1].time;
+						}
+						send_prog('B', data_beep, 0, 0);
+					}
+				}
+			}
+			break;
+		case RELE_2_RETURN:
+			strcpy(data,"   Retornar:      Pressione (-) ");
+
+			if (systick >= delay) {
+			  	delay = systick + 150;
+				send_prog('S', 0, data, 0);
+		    }else{
+				if(click_right){
+					click_right = false;
+					estado_prog_tx = RELE_2_TRIGGER;
+					send_prog('B', data_beep, 0, 0);
+				}
+				
+				if(click_left){
+					click_left = false;
+					--estado_prog_tx;
+					send_prog('B', data_beep, 0, 0);
+				}
+				
+				if(click_subtract || click_ok){
+					click_subtract = false;
+					click_ok = false;
+					estado_prog_tx = RELE_2_MENU;
+					send_prog('B', data_beep, 0, 0);
+				}
+	
+			}
+			break;
+		case RELE_3_TRIGGER:
+			
+			if(pgm.gate_rele_config[2].trigger == LUZ){
+				strcpy(data,"Gatilho Rele 3:  Luz de Garagem  ");
+			}else if(pgm.gate_rele_config[2].trigger == TRAVA){
+				strcpy(data,"Gatilho Rele 3:       Trava      ");
+			}else if(pgm.gate_rele_config[2].trigger == BOT_ABRE){
+				strcpy(data,"Gatilho Rele 3:  BOT  Abertura   ");
+			}else if(pgm.gate_rele_config[2].trigger == BOT_FECHA){
+				strcpy(data,"Gatilho Rele 3:  BOT Fechamento  ");
+			}
+			else if(pgm.gate_rele_config[2].trigger == BOT){
+				strcpy(data,"Gatilho Rele 3:     Botoeira     ");
+			}
+			else if(pgm.gate_rele_config[2].trigger == FOT_FEC){
+				strcpy(data,"Gatilho Rele 3:  FOT Fechamento  ");
+			}
+			else if(pgm.gate_rele_config[2].trigger == FOT_ABR){
+				strcpy(data,"Gatilho Rele 3:   FOT Abertura   ");
+			}
+			else if(pgm.gate_rele_config[2].trigger == REED_FEC){
+				strcpy(data,"Gatilho Rele 3: Reed Fechamento  ");
+			}
+			else if(pgm.gate_rele_config[2].trigger == REED_ABR){
+				strcpy(data,"Gatilho Rele 3:  Reed Abertura   ");
+			}
+			else if(pgm.gate_rele_config[2].trigger == PORTAO_ABERTO){
+				strcpy(data,"Gatilho Rele 3:  Portao Aberto   ");
+			}
+			else if(pgm.gate_rele_config[2].trigger == PORTAO_ABRINDO){
+				strcpy(data,"Gatilho Rele 3:  Portao Abrindo  ");
+			}
+			else if(pgm.gate_rele_config[2].trigger == PORTAO_FECHADO){
+				strcpy(data,"Gatilho Rele 3:  Portao Fechado  ");
+			}
+			else if(pgm.gate_rele_config[2].trigger == PORTAO_FECHANDO){
+				strcpy(data,"Gatilho Rele 3: Portao Fechando  ");
+			}
+			
+			
+			if (systick >= delay) {
+			  	delay = systick + 150;
+				send_prog('S', 0, data, 0);
+		    }else{
+				if(click_right){
+					click_right = false;
+					++estado_prog_tx;
+					send_prog('B', data_beep, 0, 0);
+				}
+				
+				if(click_left){
+					click_left = false;
+					estado_prog_tx = RELE_3_RETURN;
+					send_prog('B', data_beep, 0, 0);
+				}
+				
+				if(click_add){
+					click_add = false;
+					if(pgm.gate_rele_config[2].trigger < 12){
+						++pgm.gate_rele_config[2].trigger;
+						send_prog('B', data_beep, 0, 0);
+					}
+				}
+				
+				if(click_subtract){
+					click_subtract = false;
+					if(pgm.gate_rele_config[2].trigger > 0){
+						--pgm.gate_rele_config[2].trigger;
+						send_prog('B', data_beep, 0, 0);
+					}
+				}
+			}
+
+			
+			break;
+		case RELE_3_MODE:
+			if(pgm.gate_rele_config[2].mode == On_Off){
+				strcpy(data,"  Modo Rele 3:       Normal      ");
+			}else if(pgm.gate_rele_config[2].mode == Delayed_Toggle){
+				strcpy(data,"  Modo Rele 3:       Retardo     ");
+			}else if(pgm.gate_rele_config[2].mode == Pulsed){
+				strcpy(data,"  Modo Rele 3:       Pulsado     ");
+			}else if(pgm.gate_rele_config[2].mode == Retention){
+				strcpy(data,"  Modo Rele 3:      Retencao     ");
+			}
+			
+			if (systick >= delay) {
+			  	delay = systick + 150;
+				send_prog('S', 0, data, 0);
+		    }else{
+				if(click_right){
+					click_right = false;
+					++estado_prog_tx;
+					send_prog('B', data_beep, 0, 0);
+				}
+				
+				if(click_left){
+					click_left = false;
+					--estado_prog_tx;
+					send_prog('B', data_beep, 0, 0);
+				}
+				
+				if(click_add){
+					click_add = false;
+					if(pgm.gate_rele_config[2].mode < 3){
+						++pgm.gate_rele_config[2].mode;
+						send_prog('B', data_beep, 0, 0);
+					}
+				}
+				
+				if(click_subtract){
+					click_subtract = false;
+					if(pgm.gate_rele_config[2].mode > 0){
+						--pgm.gate_rele_config[2].mode;
+						send_prog('B', data_beep, 0, 0);
+					}
+				}
+			}
+			break;
+		case RELE_3_TIME:
+			sprintf(data, " Tempo Rele 3:         %us         ",pgm.gate_rele_config[2].time);
+			buffer_size = (strlen(data) + 6);
+			montar_pacote_prog(Buffer_TX, buffer_size, 0x01,'S', data, strlen(data));
+			
+			if (systick >= delay) {
+			  	delay = systick + 150;
+		      	transmit_packet(Buffer_TX, buffer_size);
+		    }
+		    
+			if (systick >= delay) {
+			  	delay = systick + 150;
+				send_prog('S', 0, data, 0);
+		    }else{
+				if(click_right){
+					click_right = false;
+					++estado_prog_tx;
+					send_prog('B', data_beep, 0, 0);
+				}
+				
+				if(click_left){
+					click_left = false;
+					--estado_prog_tx;
+					send_prog('B', data_beep, 0, 0);
+				}
+				
+				if(click_add){
+					click_add = false;
+					if(pgm.gate_rele_config[2].time < 65000){
+						if(pgm.gate_rele_config[2].mode == Pulsed){
+							pgm.gate_rele_config[2].time = pgm.gate_rele_config[2].time + 50;
+						}else{
+							++pgm.gate_rele_config[2].time;
+						}
+						send_prog('B', data_beep, 0, 0);
+					}
+				}
+				
+				if(click_subtract){
+					click_subtract = false;
+					if(pgm.gate_rele_config[2].time > 0){
+						if(pgm.gate_rele_config[2].mode == Pulsed){
+							pgm.gate_rele_config[2].time = pgm.gate_rele_config[2].time - 50;
+						}else{
+							--pgm.gate_rele_config[2].time;
+						}
+						send_prog('B', data_beep, 0, 0);
+					}
+				}
+			}
+			break;
+		case RELE_3_RETURN:
+			strcpy(data,"   Retornar:      Pressione (-) ");
+
+			if (systick >= delay) {
+			  	delay = systick + 150;
+				send_prog('S', 0, data, 0);
+		    }else{
+				if(click_right){
+					click_right = false;
+					estado_prog_tx = RELE_3_TRIGGER;
+					send_prog('B', data_beep, 0, 0);
+				}
+				
+				if(click_left){
+					click_left = false;
+					--estado_prog_tx;
+					send_prog('B', data_beep, 0, 0);
+				}
+				
+				if(click_subtract || click_ok){
+					click_subtract = false;
+					click_ok = false;
+					estado_prog_tx = RELE_3_MENU;
+					send_prog('B', data_beep, 0, 0);
+				}
+	
 			}
 			break;
 		
@@ -1725,11 +2259,11 @@ int main(void) {
   while (1) {
 	
 	if(!prog_connected){
-		if(save_to_memory){
-			__disable_irq();
-			erase_flash(FLASH_SECTOR_ADDR);
-			__enable_irq();
-		}
+//		if(save_to_memory){
+//			__disable_irq();
+//			erase_flash(FLASH_SECTOR_ADDR);
+//			__enable_irq();
+//		}
 		rele_Control();
 	   	receive_alarm_packet();
 	 	Control_alarm();
