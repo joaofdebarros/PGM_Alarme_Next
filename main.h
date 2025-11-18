@@ -191,6 +191,7 @@ volatile bool alarm_packet_completed = false;
 volatile bool gate_packet_completed = false;
 volatile bool prog_packet_completed = false;
 volatile bool boot_completed = false;
+volatile bool show_first_screen = false;
 volatile bool recebendo = false;
 volatile bool pacote_obsoleto = false;
 volatile bool cadastrado = false;

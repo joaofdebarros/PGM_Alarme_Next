@@ -266,23 +266,6 @@
                         <Param id="rtc_src" value="XMC_SCU_CLOCK_RTCCLKSRC_DCO2"/>
                     </Parameters>
                 </Personality>
-                <Personality template="xmc1_eeprom" version="1.0">
-                    <Block location="scu[0].eeprom[0]" locked="true"/>
-                    <Parameters>
-                        <Param id="Block0_size" value="16"/>
-                        <Param id="Block1_size" value="16"/>
-                        <Param id="Block2_size" value="16"/>
-                        <Param id="Block3_size" value="16"/>
-                        <Param id="Block4_size" value="16"/>
-                        <Param id="Block5_size" value="16"/>
-                        <Param id="Block6_size" value="16"/>
-                        <Param id="Block7_size" value="16"/>
-                        <Param id="Block8_size" value="16"/>
-                        <Param id="Block9_size" value="16"/>
-                        <Param id="Number_of_Blocks" value="1"/>
-                        <Param id="eeprom_size" value="1792"/>
-                    </Parameters>
-                </Personality>
                 <Personality template="xmc_uart" version="1.0">
                     <Block location="usic[0].ch[0]" locked="true">
                         <Aliases>

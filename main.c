@@ -14,44 +14,44 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#include "xmc1_e_eeprom.h"
+//#include "xmc1_e_eeprom.h"
 
 /*****************************************************************************
  * GLOBAL DATA
  ****************************************************************************/
 /* Variable to flag if E_EEPROM block is inconsistent */
-uint8_t E_EEPROM_inconsistent = 0U; /* 0U = Inconsistent, 1U = Consistent */
-/* Structure to store user data block informations */
-E_EEPROM_XMC1_CACHE_t block_info_buf[1];
-E_EEPROM_XMC1_DATA_t  E_EEPROM_XMC1_config =
-{
-        .block_info = block_info_buf
-};
-/**
- *  User defined Data Block configurations
- */
-const E_EEPROM_XMC1_BLOCK_t E_EEPROM_XMC1_block_Config[] =
-{
-    /* Block 1 Configuration */
-    {1U, scu_0_eeprom_0_EEPROM_BLOCK0_SIZE}
-};
-
-/*
-*  EMULATED_EEPROM handle structure definition
-*/
-E_EEPROM_XMC1_t E_EEPROM_XMC1_handle =
-{
- .block_config_ptr        = (E_EEPROM_XMC1_BLOCK_t *)(void*)E_EEPROM_XMC1_block_Config, /* Pointer to user block configurations */
- .data_ptr                = &E_EEPROM_XMC1_config,                                      /* Pointer to the state variable data structure */
-#ifdef E_EEPROM_XMC1_CRC_SW_ENABLED
- .crc_handle_ptr          = null
-#endif
- .state                   = E_EEPROM_XMC1_STATUS_UNINITIALIZED,  /* Current state of EEPROM */
- .block_count             = 1,                 					 /* Number of EEPROM blocks to be configured */
- .erase_all_auto_recovery = 1U,                                  /* Erase Complete emulation area and recover to default state disabled */
- .data_block_crc          = 0U,                                  /* Data block CRC disabled */
- .garbage_collection      = 1U                                   /* Garbage collection enabled */
-};
+//uint8_t E_EEPROM_inconsistent = 0U; /* 0U = Inconsistent, 1U = Consistent */
+///* Structure to store user data block informations */
+//E_EEPROM_XMC1_CACHE_t block_info_buf[1];
+//E_EEPROM_XMC1_DATA_t  E_EEPROM_XMC1_config =
+//{
+//        .block_info = block_info_buf
+//};
+///**
+// *  User defined Data Block configurations
+// */
+//const E_EEPROM_XMC1_BLOCK_t E_EEPROM_XMC1_block_Config[] =
+//{
+//    /* Block 1 Configuration */
+//    {1U, scu_0_eeprom_0_EEPROM_BLOCK0_SIZE}
+//};
+//
+///*
+//*  EMULATED_EEPROM handle structure definition
+//*/
+//E_EEPROM_XMC1_t E_EEPROM_XMC1_handle =
+//{
+// .block_config_ptr        = (E_EEPROM_XMC1_BLOCK_t *)(void*)E_EEPROM_XMC1_block_Config, /* Pointer to user block configurations */
+// .data_ptr                = &E_EEPROM_XMC1_config,                                      /* Pointer to the state variable data structure */
+//#ifdef E_EEPROM_XMC1_CRC_SW_ENABLED
+// .crc_handle_ptr          = null
+//#endif
+// .state                   = E_EEPROM_XMC1_STATUS_UNINITIALIZED,  /* Current state of EEPROM */
+// .block_count             = 1,                 					 /* Number of EEPROM blocks to be configured */
+// .erase_all_auto_recovery = 1U,                                  /* Erase Complete emulation area and recover to default state disabled */
+// .data_block_crc          = 0U,                                  /* Data block CRC disabled */
+// .garbage_collection      = 1U                                   /* Garbage collection enabled */
+//};
 
 pgm_packet_error_e pgm_alarm_packet_demount(uint8_t *datain, uint16_t len,
                                             pgm_alarm_packet_t *packet) {
@@ -325,17 +325,26 @@ uint8_t crc8(const uint8_t *data, uint8_t len, uint8_t inc) {
   return crc;
 }
 
-//__attribute__((section(".ram_code")))
 void erase_flash(uint32_t *page_addr) {
   XMC_FLASH_IsBusy();
   XMC_FLASH_ErasePage(page_addr);
   XMC_FLASH_IsBusy();
 }
 
-//__attribute__((section(".ram_code")))
-static void program_flash(uint32_t *dst_addr, const uint32_t *src_addr)
+static void program_flash(uint32_t *dst_addr, pgm_gate_config_t *src_addr)
 {
-    XMC_FLASH_ProgramPage(dst_addr, src_addr);
+    uint8_t buffer[256];
+    memset(buffer, 0xFF, sizeof(buffer));  // Flash apagada = 0xFF
+
+    memcpy(buffer, src_addr, sizeof(pgm.gate_rele_config));  // Copia seus dados
+
+//    XMC_FLASH_Unlock();
+
+    while (XMC_FLASH_IsBusy());
+    XMC_FLASH_ProgramPage(dst_addr, (uint32_t*)buffer);
+    while (XMC_FLASH_IsBusy());
+
+//    XMC_FLASH_Lock();
 }
 
 void read_flash() {
@@ -348,7 +357,7 @@ void read_flash() {
 //    return 0;
 //  }
 
-	memcpy(pgm.gate_rele_config, (uint32_t*)FLASH_SECTOR_ADDR, sizeof(pgm.gate_rele_config));
+	memcpy(&pgm.gate_rele_config[0], FLASH_SECTOR_ADDR, sizeof(pgm.gate_rele_config));
 }
 
 // Rotina para salvar o UID do micro
@@ -612,7 +621,9 @@ void SysTick_Handler(void) {
   
   if(!prog_connected){
 	estado_prog_tx = 0;
+	show_first_screen = false;
 	boot_completed = false;
+	gate = false;
   }	
 	
   bool bot_input = !XMC_GPIO_GetInput(BOT_PORT, BOT_PIN);
@@ -694,7 +705,7 @@ void SysTick_Handler(void) {
     if (cadastrado) {
       Blinking_gap = 200;
     }else{
-      if(gate){
+      if(gate || prog_connected){
 		Blinking_gap = 500;
 	  }else{
 		Blinking_gap = 100;	
@@ -939,6 +950,7 @@ void USIC0_2_IRQHandler(void) {
 	if(!prog_connected){
 		new_gate_packet = true;
 	}else{
+		boot_completed = true;
 		new_prog_packet = true;
 	}
 }
@@ -1406,6 +1418,13 @@ void program_PGM_RX(){
 	static uint8_t RIGHT_debounce = 0;
 	static uint8_t LEFT_debounce = 0;
 	
+	if(!boot_completed){
+		char data[32];
+		
+		strcpy(data,"                                  ");
+		send_prog('S', 0, data, 0);
+	}
+	
 	if(prog_packet_completed){
 		prog_packet_completed = false;
 		if(pgm.connect_packet.function == 'S'){
@@ -1513,8 +1532,8 @@ void program_PGM_TX(){
 		case TELA_INICIAL:
 			strcpy(data," Configurar PGM                 ");
 			
-			if(!boot_completed){
-				boot_completed = true;
+			if(!show_first_screen){
+				show_first_screen = true;
 				boot_delay = systick + 1500;
 				send_prog('S', 0, data, 0);
 			}
@@ -2250,7 +2269,7 @@ int main(void) {
 
   get_UID();
 	
-//  read_flash();
+  read_flash();
   
   incremento = 1;
 
@@ -2259,11 +2278,11 @@ int main(void) {
   while (1) {
 	
 	if(!prog_connected){
-//		if(save_to_memory){
-//			__disable_irq();
-//			erase_flash(FLASH_SECTOR_ADDR);
-//			__enable_irq();
-//		}
+		if(save_to_memory){
+			save_to_memory = false;
+			erase_flash(FLASH_SECTOR_ADDR);
+			program_flash(FLASH_SECTOR_ADDR, &pgm.gate_rele_config[0]);
+		}
 		rele_Control();
 	   	receive_alarm_packet();
 	 	Control_alarm();
@@ -2273,7 +2292,10 @@ int main(void) {
 		save_to_memory = true;
 		receive_prog_packet();
 	    program_PGM_RX();
-	    program_PGM_TX();
+	    if(boot_completed){
+			 program_PGM_TX();
+		}
+	   
 	}
 	
   }
