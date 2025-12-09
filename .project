@@ -1,9 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <projectDescription>
-	<name>Modulo_PGM1</name>
+	<name>PGM_Alarme_Next</name>
 	<comment></comment>
 	<projects>
-		<project>mtb_shared</project>
 	</projects>
 	<buildSpec>
 		<buildCommand>
@@ -26,4 +25,6 @@
 		<nature>org.eclipse.cdt.managedbuilder.core.managedBuildNature</nature>
 		<nature>org.eclipse.cdt.managedbuilder.core.ScannerConfigNature</nature>
 	</natures>
+	<linkedResources>
+	</linkedResources>
 </projectDescription>
